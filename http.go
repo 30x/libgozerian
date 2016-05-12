@@ -1,6 +1,7 @@
 package main
 
 import (
+  "bytes"
   "fmt"
   "regexp"
   "strconv"
@@ -45,6 +46,31 @@ func parseHTTPRequest(rawHeaders string) (*http.Request, error) {
   }
 
   return &req, nil
+}
+
+//serialize the headersMap back to a string
+func serializeHeaders(headerMap http.Header) string {
+	var buffer bytes.Buffer
+	for key := range headerMap {
+		values := headerMap[key]
+		var valuesBuffer bytes.Buffer
+		for i := 0; i < len(values); i++ {
+			if values[i] != "" {
+				if i > 0 {
+					valuesBuffer.WriteString(",")
+				}
+				valuesBuffer.WriteString(values[i])
+			}
+		}
+		val := valuesBuffer.String()
+		buffer.WriteString(key)
+		buffer.WriteString(": ")
+		buffer.WriteString(val)
+		buffer.WriteString("\n")
+	}
+	serializedHeaders := buffer.String()
+
+	return serializedHeaders
 }
 
 func parseRequestLine(line string, req *http.Request) error {
