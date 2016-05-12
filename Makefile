@@ -11,5 +11,5 @@ test:
 race:
 	go test -race
 
-alean:
+clean:
 	go clean
