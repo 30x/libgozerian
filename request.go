@@ -1,7 +1,7 @@
 package main
 
 import (
-  "io"
+  "fmt"
   "net/http"
 )
 
@@ -21,6 +21,15 @@ type Request struct {
   id uint32
   cmds chan command
   bodies chan []byte
+  proxying bool
+}
+
+func NewRequest(id uint32) *Request {
+  r := Request{
+    id: id,
+    proxying: true,
+  }
+  return &r
 }
 
 func (r *Request) Begin(rawHeaders string) error {
@@ -30,24 +39,22 @@ func (r *Request) Begin(rawHeaders string) error {
   return nil
 }
 
-func (r *Request) Poll() string {
+func (r *Request) PollNB() string {
   select {
   case cmd := <- r.cmds:
-    if cmd.id == CmdDone {
-      deleteRequest(r.id)
-    }
     return cmd.String()
   default:
     return ""
   }
 }
 
-func (r *Request) Cancel() {
-  // TODO what exactly?
+func (r* Request) Poll() string {
+  cmd := <- r.cmds
+  return cmd.String()
 }
 
 func (r *Request) startRequest(rawHeaders string) {
-  req, err := parseHTTPRequest(rawHeaders)
+  req, err := parseHTTPHeaders(rawHeaders, true)
   if err != nil {
     r.cmds <- createErrorCommand(err)
     return
@@ -55,82 +62,38 @@ func (r *Request) startRequest(rawHeaders string) {
 
   resp := &httpResponse{
     req: r,
+    httpReq: req,
   }
 
   req.Body = &requestBody{
     req: r,
   }
-  requestHandler.ServeHTTP(resp, req)
 
+  proxyReq := &ProxyRequest{
+    req: r,
+    httpReq: req,
+  }
+
+  // Call handlers. They may write the request body or headers, or start
+  // to write out a response.
+  mainHandler.HandleRequest(resp, req, proxyReq)
+
+  // It's possible that not everything was cleaned up here.
+  if r.proxying {
+    proxyReq.flush()
+  } else {
+    resp.flush(http.StatusOK)
+  }
+
+  // This signals that everything is done.
   r.cmds <- command{id: CmdDone}
 }
 
-type requestBody struct {
-  req *Request
-  started bool
-  curBuf []byte
-}
-
-func (b *requestBody) Read(buf []byte) (int, error) {
-  if !b.started {
-    // First tell the caller that we need some data.
-    b.req.cmds <- command{id: CmdGetBody}
-    b.started = true
-  }
-
-  cb := b.curBuf
-  if cb == nil {
-    // Will return nil at end of channel.
-    cb = <- b.req.bodies
-  }
-
-  if cb == nil {
-    return 0, io.EOF
-  }
-
-  if len(cb) <= len(buf) {
-    copy(buf, cb)
-    //copy((*[1<<30]byte)(buf)[:], cb)
-    b.curBuf = nil
-    return len(cb), nil
-  }
-
-  copy(buf, cb[:len(buf)])
-  return len(buf), nil
-}
-
-func (b *requestBody) Close() error {
-  if b.started {
-    // Need to clear the channel.
-    b.curBuf = nil
-    drained := <- b.req.bodies
-    for drained != nil {
-      drained = <- b.req.bodies
-    }
-  }
-  return nil
-}
-
-type httpResponse struct {
-  req *Request
-  headers http.Header
-}
-
-func (h *httpResponse) Header() http.Header {
-  // TODO plug in to "request" object, copy on write the headers, send back changes
-  return h.headers
-}
-
-func (h *httpResponse) Write(buf []byte) (int, error) {
-  // TODO need to respond with bytes, not a UTF-8-encoded string
+func (r *Request) sendBodyChunk(chunk []byte) {
+  // TODO this should really be a byte array
   cmd := command{
-    id: CmdWriteBody,
-    msg: string(buf),
+    id: WBOD,
+    msg: fmt.Sprintf("%x %s", len(chunk), string(chunk)),
   }
-  h.req.cmds <- cmd
-  return len(buf), nil
-}
-
-func (h *httpResponse) WriteHeader(hdr int) {
-  // TODO
+  r.cmds <- cmd
 }

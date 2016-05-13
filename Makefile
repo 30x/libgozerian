@@ -11,5 +11,10 @@ test:
 race:
 	go test -race
 
+graph: states.png
+
+states.png: states.dot
+	dot -Tpng states.dot -ostates.png
+
 clean:
 	go clean

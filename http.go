@@ -28,7 +28,7 @@ const (
 var requestLineRe = regexp.MustCompile(RequestLine)
 var headerLineRe = regexp.MustCompile(HeaderLine)
 
-func parseHTTPRequest(rawHeaders string) (*http.Request, error) {
+func parseHTTPHeaders(rawHeaders string, hasRequestLine bool) (*http.Request, error) {
   req := http.Request{
     Header: make(map[string][]string),
   }
@@ -36,7 +36,7 @@ func parseHTTPRequest(rawHeaders string) (*http.Request, error) {
   lines := strings.Split(rawHeaders, "\r\n")
 
   for i, line := range(lines) {
-    if i == 0 {
+    if hasRequestLine && (i == 0) {
       err := parseRequestLine(line, &req)
       if err != nil { return nil, err }
     } else {
@@ -71,6 +71,31 @@ func serializeHeaders(headerMap http.Header) string {
 	serializedHeaders := buffer.String()
 
 	return serializedHeaders
+}
+
+/*
+ * Parse the simplified header serialization format supported by
+ * "serializeHeaders." This format is not the same as the HTTP standard.
+ */
+func parseHeaders(headerMap http.Header, rawHeaders string) {
+	headerValues := strings.Split(rawHeaders, "\n")
+	for _, header := range headerValues {
+		keyValue := strings.Split(header, ": ")
+		if len(keyValue) == 2 {
+			key := keyValue[0]
+			valueString := keyValue[1]
+			if valueString != "" {
+				values := strings.Split(valueString, ",")
+				if _, ok := headerMap[key]; !ok {
+					headerMap[key] = make([]string, len(values))
+				}
+				for i := 0; i < len(values); i++ {
+					headerMap[key][i] = values[i]
+				}
+			}
+		}
+
+	}
 }
 
 func parseRequestLine(line string, req *http.Request) error {

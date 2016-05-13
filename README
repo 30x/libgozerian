@@ -1,3 +1,88 @@
 # Weaver
 
 Coming soon.
+
+## Commands
+Weaver and the C code that is calling it communicate using these
+commands. Commands are returned as a string. The first four characters
+of the string are guaranteed to contain a four-letter command code.
+The rest of the string depends on the command.
+
+### DONE
+   This is always the last command sent. It has no additional data. (It always
+literally consists of the string "DONE".) No more commands will be delivered.
+
+### ERRR
+   This represents a fatal error processing the request. No more commands
+will be delivered. The content of the string after the first four characters
+is an error message.
+
+### RBOD
+   This indicates to the caller that the Go code wishes to read the request
+body. The caller must respond to this command by sending the request
+body in chunks, and must set the "last" value of the last chunk.
+There is no additional data.
+
+### WHDR
+   This replaces the headers of the message. The headers to be replaced
+are the request headers unless SWTCH has been sent, in which case they are
+the response headers.
+
+### WURI
+   This replaces the URI of the target response. If the URL is a full URI
+(that is it starts with a protocol) then the caller should ensure that the
+target server is changed to the new value. Otherwise, the caller should
+replace only the path. This command will never be sent after a SWCH.
+
+### SWCH
+   This indicates a switch from running in proxy mode to generating a
+request entirely. Once SWCH is sent, subsequent calls to WHDR and WBOD
+indicate data that should be returned directly to the caller, rather
+than continuing to proxy the data.
+
+### WBOD
+   This is a chunk of data that will replace the body. Additional calls
+to WBOD may follow. A call to DONE indicates that the write is complete.
+If SWCH was previously sent, then the body represents the response body
+to send the client. Otherwise it replaces the request body that will
+be forwarded to the target.
+
+## Message formats
+
+### Error
+
+The ERRR message consists of the four characters "ERRR" followed immediately
+by the text of an error message in UTF-8 encoding.
+
+### Headers
+
+The WHDR message consists of the four characters "WHDR" followed immediately by
+header / value pairs. Each header / value pair is separated by a single newline
+( \n ). Within the pairs, each header consists of a set of characters followed
+by a colon ( : ), and optional white space. The rest of the line after the
+optional whitespace is the value of the header. The same header may appear
+multiple times in the output, denoting multiple values.
+
+### URI
+
+The SURI message consists of the four characters "WURI" followed immediately
+by the new URI.
+
+### Response Switch
+
+The SWCH message consists of the four characters "SWCH" followed immediately
+by the response code, represented as a UTF-8 encoded string in base 10.
+
+### Body Chunk
+
+The WBOD message is more complicated and consists of the following:
+
+* The four characters WBOD
+* The length of the message body, encoded as a hexadecimal string with
+no leading "0x"
+* A space
+* The rest of the body chunk, in its raw form.
+
+For instance, the message "Hello" would be encoded:
+
+    WBOD4 Hello

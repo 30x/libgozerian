@@ -31,7 +31,7 @@ const (
 
 var _ = Describe("HTTP Parsing", func() {
   It("Complete Request With Length", func() {
-    req, err := parseHTTPRequest(CompleteRequestLength)
+    req, err := parseHTTPHeaders(CompleteRequestLength, true)
     Expect(err).Should(Succeed())
     Expect(req.Method).Should(Equal("GET"))
     Expect(req.RequestURI).Should(Equal("/foo/bar/baz"))
@@ -47,7 +47,7 @@ var _ = Describe("HTTP Parsing", func() {
   })
 
   It("Complete Request With No Length", func() {
-    req, err := parseHTTPRequest(CompleteRequestNoLength)
+    req, err := parseHTTPHeaders(CompleteRequestNoLength, true)
     Expect(err).Should(Succeed())
     Expect(req.Method).Should(Equal("GET"))
     Expect(req.RequestURI).Should(Equal("/foo/bar/baz"))
@@ -62,7 +62,7 @@ var _ = Describe("HTTP Parsing", func() {
   })
 
   It("Complete Request With Blank Header", func() {
-    req, err := parseHTTPRequest(CompleteRequestLengthBlankHeader)
+    req, err := parseHTTPHeaders(CompleteRequestLengthBlankHeader, true)
     Expect(err).Should(Succeed())
     Expect(req.Method).Should(Equal("GET"))
     Expect(req.RequestURI).Should(Equal("/foo/bar/baz"))
@@ -77,7 +77,7 @@ var _ = Describe("HTTP Parsing", func() {
   })
 
   It("Invalid Request", func() {
-    _, err := parseHTTPRequest(InvalidRequest)
+    _, err := parseHTTPHeaders(InvalidRequest, true)
     Expect(err).ShouldNot(Succeed())
   })
 })

@@ -30,11 +30,8 @@ func CreateRequest() uint32 {
   // After 2BB requests we will roll over. That should not be a problem.
   lastRequestID++
   id := lastRequestID
-  req := Request{
-    id: id,
-  }
-  requests[id] = &req
-
+  req := NewRequest(id)
+  requests[id] = req
   return id
 }
 
@@ -55,22 +52,21 @@ func BeginRequest(id uint32, rawHeaders string) error {
  * string that represents a command, or an empty string if there is none.
  * Commands are defined in commands.go.
  */
-func PollRequest(id uint32) string {
+func PollRequest(id uint32, block bool) string {
   req := getRequest(id)
   if req == nil { return "" }
 
-  return req.Poll()
+  if block {
+    return req.Poll()
+  }
+  return req.PollNB()
 }
 
 /*
- * Cancel a request that has not yet completed.
+ * Free the slot for a request.
  */
-func CancelRequest(id uint32) {
-  req := getRequest(id)
-  if req != nil {
-    req.Cancel()
-    deleteRequest(id)
-  }
+func FreeRequest(id uint32) {
+  deleteRequest(id)
 }
 
 /*

@@ -1,0 +1,28 @@
+digraph G {
+  Start -> DONE;
+  Start -> RBOD;
+  Start -> WBOD;
+  Start -> WHDR;
+  Start -> WURI;
+  Start -> SWCH;
+
+  RBOD -> DONE;
+  RBOD -> WHDR;
+  RBOD -> WURI;
+  RBOD -> SWCH;
+  RBOD -> WBOD;
+
+  WURI -> WHDR;
+  WURI -> WBOD;
+  WURI -> DONE;
+
+  WHDR -> DONE;
+  WHDR -> WBOD;
+
+  WBOD -> WBOD;
+  WBOD -> DONE;
+
+  SWCH -> WHDR;
+  SWCH -> WBOD;
+  SWCH -> DONE;
+}
