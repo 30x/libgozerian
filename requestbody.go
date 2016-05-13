@@ -35,6 +35,7 @@ func (b *requestBody) Read(buf []byte) (int, error) {
   }
 
   copy(buf, cb[:len(buf)])
+  b.curBuf = cb[len(buf):]
   return len(buf), nil
 }
 

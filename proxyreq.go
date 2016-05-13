@@ -48,6 +48,8 @@ func (p *ProxyRequest) flush() {
   if p.headersFlushed {
     return
   }
+  p.headersFlushed = true
+  
   if p.url != nil {
     uriCmd := command{
       id: WURI,

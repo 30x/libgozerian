@@ -1,6 +1,7 @@
 package main
 
 import (
+  "bytes"
   "fmt"
   "time"
   "io/ioutil"
@@ -29,8 +30,10 @@ func SetTestRequestHandler() {
  * This is a built-in request handler that may be installed for testing.
  */
 type testRequestHandler struct {
-  lastBody []byte
 }
+
+// help us a bit by saving test results for internal comparison
+var lastTestBody []byte
 
 func (h *testRequestHandler) HandleRequest(resp http.ResponseWriter, req *http.Request, proxyReq *ProxyRequest) {
   switch req.URL.Path {
@@ -45,7 +48,23 @@ func (h *testRequestHandler) HandleRequest(resp http.ResponseWriter, req *http.R
     if err != nil {
       fmt.Printf("Error reading body: %v\n", err)
     }
-    h.lastBody = buf
+    lastTestBody = buf
+    req.Body.Close()
+
+  case "/readbodyslow":
+    tmp := make([]byte, 2)
+    buf := &bytes.Buffer{}
+    len, _ := req.Body.Read(tmp)
+    for len > 0 {
+      buf.Write(tmp[0:len])
+      len, _ = req.Body.Read(tmp)
+    }
+    lastTestBody = buf.Bytes()
+    req.Body.Close()
+
+  case "/readanddiscard":
+    tmp := make([]byte, 2)
+    req.Body.Read(tmp)
     req.Body.Close()
 
   case "/replacebody":
@@ -68,6 +87,20 @@ func (h *testRequestHandler) HandleRequest(resp http.ResponseWriter, req *http.R
 
   case "/returnbody":
     resp.Write([]byte("Hello! I am the server!"))
+
+  case "/completerequest":
+    newURL, _ := url.Parse("/totallynewurl")
+    proxyReq.SetURL(newURL)
+    proxyReq.Header().Add("X-Apigee-Test", "Complete")
+    proxyReq.Write([]byte("Hello Again! "))
+    proxyReq.Write([]byte("Time for a complete rewrite!"))
+
+  case "/completeresponse":
+    ioutil.ReadAll(req.Body)
+    resp.Header().Add("X-Apigee-Test", "Complete")
+    resp.WriteHeader(http.StatusCreated)
+    resp.Write([]byte("Hello Again! "))
+    resp.Write([]byte("Time for a complete rewrite!"))
 
   default:
     resp.WriteHeader(http.StatusNotFound)

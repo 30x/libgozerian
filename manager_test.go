@@ -16,9 +16,18 @@ const (
 )
 
 var _ = Describe("Go Management Interface", func() {
-  It("Basic Request", func() {
-    id := CreateRequest()
+  var id uint32
+
+  BeforeEach(func() {
+    id = CreateRequest()
     Expect(id).ShouldNot(BeZero())
+  })
+
+  AfterEach(func() {
+    FreeRequest(id)
+  })
+
+  It("Basic Request", func() {
     err := BeginRequest(id, makeHeaders("GET", "/pass", "", 0))
     Expect(err).Should(Succeed())
 
@@ -27,8 +36,6 @@ var _ = Describe("Go Management Interface", func() {
   })
 
   It("Slow Basic Request", func() {
-    id := CreateRequest()
-    Expect(id).ShouldNot(BeZero())
     err := BeginRequest(id, makeHeaders("GET", "/slowpass", "", 0))
     Expect(err).Should(Succeed())
 
@@ -37,8 +44,6 @@ var _ = Describe("Go Management Interface", func() {
   })
 
   It("Invalid Request", func() {
-    id := CreateRequest()
-    Expect(id).ShouldNot(BeZero())
     err := BeginRequest(id, InvalidRequest)
     Expect(err).Should(Succeed())
 
@@ -47,8 +52,6 @@ var _ = Describe("Go Management Interface", func() {
   })
 
   It("Not Found", func() {
-    id := CreateRequest()
-    Expect(id).ShouldNot(BeZero())
     err := BeginRequest(id, makeHeaders("GET", "/notFoundAtAllNoWay", "", 0))
     Expect(err).Should(Succeed())
 
@@ -61,8 +64,6 @@ var _ = Describe("Go Management Interface", func() {
 
   It("Read request body no modify", func() {
     msg := []byte("Hello, World!")
-    id := CreateRequest()
-    Expect(id).ShouldNot(BeZero())
     err := BeginRequest(id, makeHeaders("POST", "/readbody", "text/plain", len(msg)))
     Expect(err).Should(Succeed())
 
@@ -72,12 +73,78 @@ var _ = Describe("Go Management Interface", func() {
     SendLastRequestBodyChunk(id)
     cmd = doPoll(id)
     Expect(cmd).Should(Equal("DONE"))
-    // TODO verify that the body received is what we sent.
+    Expect(bytes.Equal(msg, lastTestBody)).Should(BeTrue())
+  })
+
+  It("Read request body slowly", func() {
+    msg := []byte("Hello, World!")
+    err := BeginRequest(id, makeHeaders("POST", "/readbodyslow", "text/plain", len(msg)))
+    Expect(err).Should(Succeed())
+
+    cmd := doPoll(id)
+    Expect(cmd).Should(Equal("RBOD"))
+    SendRequestBodyChunk(id, msg)
+    SendLastRequestBodyChunk(id)
+    cmd = doPoll(id)
+    Expect(cmd).Should(Equal("DONE"))
+    fmt.Fprintf(GinkgoWriter, "Expected: %s\n", string(msg))
+    fmt.Fprintf(GinkgoWriter, "Got:      %s\n", string(lastTestBody))
+    Expect(bytes.Equal(msg, lastTestBody)).Should(BeTrue())
+  })
+
+  It("Read larger request body", func() {
+    msg1 := []byte("Hello, World! ")
+    msg2 := []byte("This is a slightly longer message")
+    err := BeginRequest(id, makeHeaders("POST", "/readbody", "text/plain", len(msg1) + len(msg2)))
+    Expect(err).Should(Succeed())
+
+    cmd := doPoll(id)
+    Expect(cmd).Should(Equal("RBOD"))
+    SendRequestBodyChunk(id, msg1)
+    SendRequestBodyChunk(id, msg2)
+    SendLastRequestBodyChunk(id)
+    cmd = doPoll(id)
+    Expect(cmd).Should(Equal("DONE"))
+    fullMsg := append(msg1, msg2...)
+    Expect(len(fullMsg)).Should(Equal(len(msg1) + len(msg2)))
+    Expect(bytes.Equal(fullMsg, lastTestBody)).Should(BeTrue())
+  })
+
+  It("Read larger request body slowly", func() {
+    msg1 := []byte("Hello, World! ")
+    msg2 := []byte("This is a slightly longer message")
+    err := BeginRequest(id, makeHeaders("POST", "/readbodyslow", "text/plain", len(msg1) + len(msg2)))
+    Expect(err).Should(Succeed())
+
+    cmd := doPoll(id)
+    Expect(cmd).Should(Equal("RBOD"))
+    SendRequestBodyChunk(id, msg1)
+    SendRequestBodyChunk(id, msg2)
+    SendLastRequestBodyChunk(id)
+    cmd = doPoll(id)
+    Expect(cmd).Should(Equal("DONE"))
+    fullMsg := append(msg1, msg2...)
+    Expect(len(fullMsg)).Should(Equal(len(msg1) + len(msg2)))
+    Expect(bytes.Equal(fullMsg, lastTestBody)).Should(BeTrue())
+  })
+
+  It("Read and discard request body", func() {
+    msg1 := []byte("Hello, World! ")
+    msg2 := []byte("This is a slightly longer message")
+    err := BeginRequest(id, makeHeaders("POST", "/readanddiscard", "text/plain", len(msg1) + len(msg2)))
+    Expect(err).Should(Succeed())
+
+    cmd := doPoll(id)
+    Expect(cmd).Should(Equal("RBOD"))
+    SendRequestBodyChunk(id, msg1)
+    SendRequestBodyChunk(id, msg2)
+    SendLastRequestBodyChunk(id)
+    cmd = doPoll(id)
+    Expect(cmd).Should(Equal("DONE"))
+    // Don't care about final body since we discarded it
   })
 
   It("Modify request headers", func() {
-    id := CreateRequest()
-    Expect(id).ShouldNot(BeZero())
     err := BeginRequest(id, makeHeaders("GET", "/writeheaders", "", 0))
     Expect(err).Should(Succeed())
 
@@ -91,8 +158,6 @@ var _ = Describe("Go Management Interface", func() {
   })
 
   It("Modify request URL", func() {
-    id := CreateRequest()
-    Expect(id).ShouldNot(BeZero())
     err := BeginRequest(id, makeHeaders("GET", "/writepath", "", 0))
     Expect(err).Should(Succeed())
 
@@ -104,8 +169,6 @@ var _ = Describe("Go Management Interface", func() {
   })
 
   It("Modify request body no read", func() {
-    id := CreateRequest()
-    Expect(id).ShouldNot(BeZero())
     err := BeginRequest(id, makeHeaders("POST", "/replacebody", "text/plain", 12))
     Expect(err).Should(Succeed())
     cmd := doPoll(id)
@@ -124,8 +187,6 @@ var _ = Describe("Go Management Interface", func() {
   })
 
   It("Modify response only", func() {
-    id := CreateRequest()
-    Expect(id).ShouldNot(BeZero())
     err := BeginRequest(id, makeHeaders("GET", "/return201", "", 0))
     Expect(err).Should(Succeed())
 
@@ -137,8 +198,6 @@ var _ = Describe("Go Management Interface", func() {
   })
 
   It("Send response with headers", func() {
-    id := CreateRequest()
-    Expect(id).ShouldNot(BeZero())
     err := BeginRequest(id, makeHeaders("GET", "/returnheaders", "", 0))
     Expect(err).Should(Succeed())
 
@@ -155,8 +214,6 @@ var _ = Describe("Go Management Interface", func() {
   })
 
   It("Send response body", func() {
-    id := CreateRequest()
-    Expect(id).ShouldNot(BeZero())
     err := BeginRequest(id, makeHeaders("GET", "/returnbody", "", 0))
     Expect(err).Should(Succeed())
 
@@ -171,6 +228,86 @@ var _ = Describe("Go Management Interface", func() {
 
     expectedBod := "Hello! I am the server!"
     matches := re.FindStringSubmatch(cmd)
+    Expect(matches).ShouldNot(BeNil())
+    Expect(matches[1]).Should(Equal(fmt.Sprintf("%x", len(expectedBod))))
+    Expect(matches[2]).Should(Equal(expectedBod))
+
+    cmd = doPoll(id)
+    Expect(cmd).Should(Equal("DONE"))
+  })
+
+  It("Complete request modification", func() {
+    err := BeginRequest(id, makeHeaders("POST", "/completerequest", "text/plain", 12))
+    Expect(err).Should(Succeed())
+
+    cmd := doPoll(id)
+    Expect(cmd).Should(MatchRegexp("^WURI.*"))
+    Expect(cmd[4:]).Should(Equal("/totallynewurl"))
+
+    cmd = doPoll(id)
+    Expect(cmd).Should(MatchRegexp("^WHDR.*"))
+    hdrs := http.Header{}
+    parseHeaders(hdrs, cmd[4:])
+    Expect(hdrs.Get("X-Apigee-Test")).Should(Equal("Complete"))
+
+    re, err := regexp.Compile("^WBOD([0-9a-f]+) (.+)$")
+    Expect(err).Should(Succeed())
+
+    cmd = doPoll(id)
+    Expect(cmd).Should(MatchRegexp("^WBOD.*"))
+    expectedBod := "Hello Again! "
+    matches := re.FindStringSubmatch(cmd)
+    Expect(matches).ShouldNot(BeNil())
+    Expect(matches[1]).Should(Equal(fmt.Sprintf("%x", len(expectedBod))))
+    Expect(matches[2]).Should(Equal(expectedBod))
+
+    cmd = doPoll(id)
+    Expect(cmd).Should(MatchRegexp("^WBOD.*"))
+    expectedBod = "Time for a complete rewrite!"
+    matches = re.FindStringSubmatch(cmd)
+    Expect(matches).ShouldNot(BeNil())
+    Expect(matches[1]).Should(Equal(fmt.Sprintf("%x", len(expectedBod))))
+    Expect(matches[2]).Should(Equal(expectedBod))
+
+    cmd = doPoll(id)
+    Expect(cmd).Should(Equal("DONE"))
+  })
+
+  It("Complete response modification", func() {
+    err := BeginRequest(id, makeHeaders("POST", "/completeresponse", "text/plain", 12))
+    Expect(err).Should(Succeed())
+
+    cmd := doPoll(id)
+    Expect(cmd).Should(Equal("RBOD"))
+    SendRequestBodyChunk(id, []byte("Hello, "))
+    SendRequestBodyChunk(id, []byte("World!"))
+    SendLastRequestBodyChunk(id)
+
+    cmd = doPoll(id)
+    Expect(cmd).Should(MatchRegexp("^SWCH.*"))
+    Expect(cmd[4:]).Should(Equal("201"))
+
+    cmd = doPoll(id)
+    Expect(cmd).Should(MatchRegexp("^WHDR.*"))
+    hdrs := http.Header{}
+    parseHeaders(hdrs, cmd[4:])
+    Expect(hdrs.Get("X-Apigee-Test")).Should(Equal("Complete"))
+
+    re, err := regexp.Compile("^WBOD([0-9a-f]+) (.+)$")
+    Expect(err).Should(Succeed())
+
+    cmd = doPoll(id)
+    Expect(cmd).Should(MatchRegexp("^WBOD.*"))
+    expectedBod := "Hello Again! "
+    matches := re.FindStringSubmatch(cmd)
+    Expect(matches).ShouldNot(BeNil())
+    Expect(matches[1]).Should(Equal(fmt.Sprintf("%x", len(expectedBod))))
+    Expect(matches[2]).Should(Equal(expectedBod))
+
+    cmd = doPoll(id)
+    Expect(cmd).Should(MatchRegexp("^WBOD.*"))
+    expectedBod = "Time for a complete rewrite!"
+    matches = re.FindStringSubmatch(cmd)
     Expect(matches).ShouldNot(BeNil())
     Expect(matches[1]).Should(Equal(fmt.Sprintf("%x", len(expectedBod))))
     Expect(matches[2]).Should(Equal(expectedBod))
