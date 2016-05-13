@@ -47,6 +47,7 @@ func (b *requestBody) Close() error {
     for drained != nil {
       drained = <- b.req.bodies
     }
+    b.started = false
   }
   return nil
 }

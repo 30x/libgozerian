@@ -72,16 +72,13 @@ func FreeRequest(id uint32) {
 /*
  * Send some data to act as the request body.
  */
-func SendRequestBodyChunk(id uint32, chunk []byte) {
+func SendRequestBodyChunk(id uint32, last bool, chunk []byte) {
   req := getRequest(id)
-  if req != nil {
+  if req == nil { return }
+  if len(chunk) > 0 {
     req.bodies <- chunk
   }
-}
-
-func SendLastRequestBodyChunk(id uint32) {
-  req := getRequest(id)
-  if req != nil {
+  if last {
     close(req.bodies)
   }
 }

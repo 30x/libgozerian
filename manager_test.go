@@ -69,8 +69,7 @@ var _ = Describe("Go Management Interface", func() {
 
     cmd := doPoll(id)
     Expect(cmd).Should(Equal("RBOD"))
-    SendRequestBodyChunk(id, msg)
-    SendLastRequestBodyChunk(id)
+    SendRequestBodyChunk(id, true, msg)
     cmd = doPoll(id)
     Expect(cmd).Should(Equal("DONE"))
     Expect(bytes.Equal(msg, lastTestBody)).Should(BeTrue())
@@ -83,8 +82,7 @@ var _ = Describe("Go Management Interface", func() {
 
     cmd := doPoll(id)
     Expect(cmd).Should(Equal("RBOD"))
-    SendRequestBodyChunk(id, msg)
-    SendLastRequestBodyChunk(id)
+    SendRequestBodyChunk(id, true, msg)
     cmd = doPoll(id)
     Expect(cmd).Should(Equal("DONE"))
     fmt.Fprintf(GinkgoWriter, "Expected: %s\n", string(msg))
@@ -100,9 +98,8 @@ var _ = Describe("Go Management Interface", func() {
 
     cmd := doPoll(id)
     Expect(cmd).Should(Equal("RBOD"))
-    SendRequestBodyChunk(id, msg1)
-    SendRequestBodyChunk(id, msg2)
-    SendLastRequestBodyChunk(id)
+    SendRequestBodyChunk(id, false ,msg1)
+    SendRequestBodyChunk(id, true, msg2)
     cmd = doPoll(id)
     Expect(cmd).Should(Equal("DONE"))
     fullMsg := append(msg1, msg2...)
@@ -118,9 +115,8 @@ var _ = Describe("Go Management Interface", func() {
 
     cmd := doPoll(id)
     Expect(cmd).Should(Equal("RBOD"))
-    SendRequestBodyChunk(id, msg1)
-    SendRequestBodyChunk(id, msg2)
-    SendLastRequestBodyChunk(id)
+    SendRequestBodyChunk(id, false, msg1)
+    SendRequestBodyChunk(id, true, msg2)
     cmd = doPoll(id)
     Expect(cmd).Should(Equal("DONE"))
     fullMsg := append(msg1, msg2...)
@@ -136,9 +132,8 @@ var _ = Describe("Go Management Interface", func() {
 
     cmd := doPoll(id)
     Expect(cmd).Should(Equal("RBOD"))
-    SendRequestBodyChunk(id, msg1)
-    SendRequestBodyChunk(id, msg2)
-    SendLastRequestBodyChunk(id)
+    SendRequestBodyChunk(id, false, msg1)
+    SendRequestBodyChunk(id, true, msg2)
     cmd = doPoll(id)
     Expect(cmd).Should(Equal("DONE"))
     // Don't care about final body since we discarded it
@@ -279,9 +274,8 @@ var _ = Describe("Go Management Interface", func() {
 
     cmd := doPoll(id)
     Expect(cmd).Should(Equal("RBOD"))
-    SendRequestBodyChunk(id, []byte("Hello, "))
-    SendRequestBodyChunk(id, []byte("World!"))
-    SendLastRequestBodyChunk(id)
+    SendRequestBodyChunk(id, false, []byte("Hello, "))
+    SendRequestBodyChunk(id, true, []byte("World!"))
 
     cmd = doPoll(id)
     Expect(cmd).Should(MatchRegexp("^SWCH.*"))

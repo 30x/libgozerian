@@ -83,10 +83,12 @@ func GoPollRequest(id uint32, block int32) *C.char {
  * non-zero.
  */
 //export GoSendRequestBodyChunk
-func GoSendRequestBodyChunk(id uint32, last int32, c *C.char, chunkLen uint32) {
+func GoSendRequestBodyChunk(id uint32, l int32, c *C.char, chunkLen uint32) {
   chunk := make([]byte, chunkLen)
   copy(chunk[:], (*[1<<30]byte)(unsafe.Pointer(c))[:])
-  SendRequestBodyChunk(id, chunk)
+  var last bool
+  if l != 0 { last = true }
+  SendRequestBodyChunk(id, last, chunk)
 }
 
 /*

@@ -22,6 +22,7 @@ type Request struct {
   cmds chan command
   bodies chan []byte
   proxying bool
+  readerClosed bool
 }
 
 func NewRequest(id uint32) *Request {
