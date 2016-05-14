@@ -139,7 +139,7 @@ func GoBeginRequest(id uint32, rawHeaders *C.char) {
  * The final response from the request will be "DONE." When this is called,
  * then no more commands will be returned. The caller must not poll
  * after "DONE" is returned.
- * The caller is responsible for calling "free" on the returned command.
+ * The caller is responsible for calling "free" on the returned command string.
  */
 //export GoPollRequest
 func GoPollRequest(id uint32, block int32) *C.char {
@@ -151,19 +151,18 @@ func GoPollRequest(id uint32, block int32) *C.char {
 }
 
 /*
- * Send a chunk of request data to the running goroutine. The chunk must point
- * to valid memory and be allocated using "GoStoreChunk." This method will
- * copy the data before returning, so that the caller may immediately free it.
- * after return. The caller must also call "GoReleaseChunk" after freeing
- * the chunk.
+ * Send a chunk of request data to the running goroutine. The second pointer,
+ * if non-zero, indicates that this is the last chunk. "data" and "len"
+ * must point to valid memory. A copy will be made before this function
+ * call returns, so the caller is free to deallocate this memory
+ * after calling this function.
  */
 //export GoSendRequestBodyChunk
-func GoSendRequestBodyChunk(id uint32, l int32, chunkID uint32) {
-  chunk := getChunk(chunkID)
+func GoSendRequestBodyChunk(id uint32, l int32, data unsafe.Pointer, len uint32) {
   var buf []byte
-  if chunk.data != nil && chunk.len > 0 {
-    buf := make([]byte, chunk.len)
-    copy(buf[:], (*[1<<30]byte)(chunk.data)[:])
+  if data != nil && len > 0 {
+    buf := make([]byte, len)
+    copy(buf[:], (*[1<<30]byte)(data)[:])
   }
   var last bool
   if l != 0 { last = true }
