@@ -75,14 +75,7 @@ by the response code, represented as a UTF-8 encoded string in base 10.
 
 ### Body Chunk
 
-The WBOD message is more complicated and consists of the following:
-
-* The four characters WBOD
-* The length of the message body, encoded as a hexadecimal string with
-no leading "0x"
-* A space
-* The rest of the body chunk, in its raw form.
-
-For instance, the message "Hello" would be encoded:
-
-    WBOD4 Hello
+The WBOD message returns the unique ID of a chunk of response data.
+It consists of the four characters WBOD, followed immediately by the
+chunk ID in hexadecimal format. The caller should use the various
+"chunk" C API calls to retrieve the chunk, and then free the storage.

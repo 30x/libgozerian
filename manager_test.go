@@ -3,7 +3,7 @@ package main
 import (
   "bytes"
   "fmt"
-  "regexp"
+  "strconv"
   "time"
   "net/http"
   . "github.com/onsi/ginkgo"
@@ -166,16 +166,13 @@ var _ = Describe("Go Management Interface", func() {
   It("Modify request body no read", func() {
     err := BeginRequest(id, makeHeaders("POST", "/replacebody", "text/plain", 12))
     Expect(err).Should(Succeed())
+
     cmd := doPoll(id)
     Expect(cmd).Should(MatchRegexp("^WBOD.*"))
-    re, err := regexp.Compile("^WBOD([0-9a-f]+) (.+)$")
-    Expect(err).Should(Succeed())
+    body := readBodyData(cmd)
 
-    expectedBod := "Hello! I am the server!"
-    matches := re.FindStringSubmatch(cmd)
-    Expect(matches).ShouldNot(BeNil())
-    Expect(matches[1]).Should(Equal(fmt.Sprintf("%x", len(expectedBod))))
-    Expect(matches[2]).Should(Equal(expectedBod))
+    expectedBod := []byte("Hello! I am the server!")
+    Expect(bytes.Equal(expectedBod, body)).Should(BeTrue())
 
     cmd = doPoll(id)
     Expect(cmd).Should(Equal("DONE"))
@@ -218,14 +215,10 @@ var _ = Describe("Go Management Interface", func() {
 
     cmd = doPoll(id)
     Expect(cmd).Should(MatchRegexp("^WBOD.*"))
-    re, err := regexp.Compile("^WBOD([0-9a-f]+) (.+)$")
-    Expect(err).Should(Succeed())
+    body := readBodyData(cmd)
 
-    expectedBod := "Hello! I am the server!"
-    matches := re.FindStringSubmatch(cmd)
-    Expect(matches).ShouldNot(BeNil())
-    Expect(matches[1]).Should(Equal(fmt.Sprintf("%x", len(expectedBod))))
-    Expect(matches[2]).Should(Equal(expectedBod))
+    expectedBod := []byte("Hello! I am the server!")
+    Expect(bytes.Equal(expectedBod, body)).Should(BeTrue())
 
     cmd = doPoll(id)
     Expect(cmd).Should(Equal("DONE"))
@@ -245,24 +238,17 @@ var _ = Describe("Go Management Interface", func() {
     parseHeaders(hdrs, cmd[4:])
     Expect(hdrs.Get("X-Apigee-Test")).Should(Equal("Complete"))
 
-    re, err := regexp.Compile("^WBOD([0-9a-f]+) (.+)$")
-    Expect(err).Should(Succeed())
+    cmd = doPoll(id)
+    Expect(cmd).Should(MatchRegexp("^WBOD.*"))
+    expectedBod := []byte("Hello Again! ")
+    bod := readBodyData(cmd)
+    Expect(bytes.Equal(expectedBod, bod)).Should(BeTrue())
 
     cmd = doPoll(id)
     Expect(cmd).Should(MatchRegexp("^WBOD.*"))
-    expectedBod := "Hello Again! "
-    matches := re.FindStringSubmatch(cmd)
-    Expect(matches).ShouldNot(BeNil())
-    Expect(matches[1]).Should(Equal(fmt.Sprintf("%x", len(expectedBod))))
-    Expect(matches[2]).Should(Equal(expectedBod))
-
-    cmd = doPoll(id)
-    Expect(cmd).Should(MatchRegexp("^WBOD.*"))
-    expectedBod = "Time for a complete rewrite!"
-    matches = re.FindStringSubmatch(cmd)
-    Expect(matches).ShouldNot(BeNil())
-    Expect(matches[1]).Should(Equal(fmt.Sprintf("%x", len(expectedBod))))
-    Expect(matches[2]).Should(Equal(expectedBod))
+    expectedBod = []byte("Time for a complete rewrite!")
+    bod = readBodyData(cmd)
+    Expect(bytes.Equal(expectedBod, bod)).Should(BeTrue())
 
     cmd = doPoll(id)
     Expect(cmd).Should(Equal("DONE"))
@@ -287,24 +273,17 @@ var _ = Describe("Go Management Interface", func() {
     parseHeaders(hdrs, cmd[4:])
     Expect(hdrs.Get("X-Apigee-Test")).Should(Equal("Complete"))
 
-    re, err := regexp.Compile("^WBOD([0-9a-f]+) (.+)$")
-    Expect(err).Should(Succeed())
+    cmd = doPoll(id)
+    Expect(cmd).Should(MatchRegexp("^WBOD.*"))
+    expectedBod := []byte("Hello Again! ")
+    bod := readBodyData(cmd)
+    Expect(bytes.Equal(expectedBod, bod)).Should(BeTrue())
 
     cmd = doPoll(id)
     Expect(cmd).Should(MatchRegexp("^WBOD.*"))
-    expectedBod := "Hello Again! "
-    matches := re.FindStringSubmatch(cmd)
-    Expect(matches).ShouldNot(BeNil())
-    Expect(matches[1]).Should(Equal(fmt.Sprintf("%x", len(expectedBod))))
-    Expect(matches[2]).Should(Equal(expectedBod))
-
-    cmd = doPoll(id)
-    Expect(cmd).Should(MatchRegexp("^WBOD.*"))
-    expectedBod = "Time for a complete rewrite!"
-    matches = re.FindStringSubmatch(cmd)
-    Expect(matches).ShouldNot(BeNil())
-    Expect(matches[1]).Should(Equal(fmt.Sprintf("%x", len(expectedBod))))
-    Expect(matches[2]).Should(Equal(expectedBod))
+    expectedBod = []byte("Time for a complete rewrite!")
+    bod = readBodyData(cmd)
+    Expect(bytes.Equal(expectedBod, bod)).Should(BeTrue())
 
     cmd = doPoll(id)
     Expect(cmd).Should(Equal("DONE"))
@@ -335,4 +314,10 @@ func makeHeaders(method, uri, contentType string, bodyLen int) string {
   fmt.Fprintf(buf, "Host: localhost:1234\r\n")
   fmt.Fprintf(buf, "\r\n")
   return buf.String()
+}
+
+func readBodyData(cmd string) []byte {
+  id, err := strconv.ParseUint(cmd[4:], 16, 32)
+  Expect(err).Should(Succeed())
+  return readChunk(uint32(id), true)
 }

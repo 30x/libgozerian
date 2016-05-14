@@ -2,9 +2,13 @@ package main
 
 import (
   "net/http"
+  "sync"
   "unsafe"
 )
 
+/*
+#include <stdlib.h>
+ */
 import "C"
 
 /*
@@ -13,6 +17,20 @@ import "C"
 type RequestHandler interface {
   HandleRequest(resp http.ResponseWriter, req *http.Request, proxyReq *ProxyRequest)
 }
+
+/*
+ * A global, thread-safe chunk table.
+ */
+
+type chunk struct {
+  id uint32
+  len uint32
+  data unsafe.Pointer
+}
+
+var lastChunkID uint32
+var chunks = make(map[uint32]chunk)
+var chunkLock = sync.Mutex{}
 
 /*
  * This is the actual C language interface to weaver. It is basically
@@ -38,6 +56,64 @@ func GoCreateRequest() uint32 {
 //export GoFreeRequest
 func GoFreeRequest(id uint32) {
   FreeRequest(id)
+}
+
+/*
+ * Store a chunk of data. The pointer must already have been allocated
+ * using "malloc" and the data must be valid for the length of the
+ * request. A chunk ID will be returned.
+ */
+//export GoStoreChunk
+func GoStoreChunk(data unsafe.Pointer, len uint32) uint32 {
+  chunkLock.Lock()
+  defer chunkLock.Unlock()
+
+  lastChunkID++
+  c := chunk{
+    id: lastChunkID,
+    len: len,
+    data: data,
+  }
+  chunks[lastChunkID] = c
+  return lastChunkID
+}
+
+/*
+ * Free a chunk of data that was stored using GoStoreChunk. This only frees
+ * the data used to track the chunk -- the caller is responsible for
+ * actually calling "free".
+ */
+//export GoReleaseChunk
+func GoReleaseChunk(id uint32) {
+  releaseChunk(id)
+}
+
+/*
+ * Retrieve the pointer to a chunk of data stored using "GoStoreChunk".
+ */
+//export GoGetChunk
+func GoGetChunk(id uint32) unsafe.Pointer {
+  return getChunk(id).data
+}
+
+/*
+ * Retrieve the length of a specific chunk.
+ */
+//export GoGetChunkLength
+func GoGetChunkLength(id uint32) uint32 {
+  return getChunk(id).len
+}
+
+func getChunk(id uint32) chunk {
+  chunkLock.Lock()
+  defer chunkLock.Unlock()
+  return chunks[id]
+}
+
+func releaseChunk(id uint32)  {
+  chunkLock.Lock()
+  defer chunkLock.Unlock()
+  delete(chunks, id)
 }
 
 /*
@@ -75,20 +151,23 @@ func GoPollRequest(id uint32, block int32) *C.char {
 }
 
 /*
- * Send a chunk of request data to the running goroutine. The chunk is a
- * byte array (which may include NULL bytes) of "chunkLen" bytes.
- * If "last" is non-zero, then this represents the last chunk.
- * This method MUST not be called unless an "RBOD" command has been received,
- * and if so then the caller must eventually call it with "last" set to
- * non-zero.
+ * Send a chunk of request data to the running goroutine. The chunk must point
+ * to valid memory and be allocated using "GoStoreChunk." This method will
+ * copy the data before returning, so that the caller may immediately free it.
+ * after return. The caller must also call "GoReleaseChunk" after freeing
+ * the chunk.
  */
 //export GoSendRequestBodyChunk
-func GoSendRequestBodyChunk(id uint32, l int32, c *C.char, chunkLen uint32) {
-  chunk := make([]byte, chunkLen)
-  copy(chunk[:], (*[1<<30]byte)(unsafe.Pointer(c))[:])
+func GoSendRequestBodyChunk(id uint32, l int32, chunkID uint32) {
+  chunk := getChunk(chunkID)
+  var buf []byte
+  if chunk.data != nil && chunk.len > 0 {
+    buf := make([]byte, chunk.len)
+    copy(buf[:], (*[1<<30]byte)(chunk.data)[:])
+  }
   var last bool
   if l != 0 { last = true }
-  SendRequestBodyChunk(id, last, chunk)
+  SendRequestBodyChunk(id, last, buf)
 }
 
 /*

@@ -6,6 +6,11 @@ import (
 )
 
 /*
+#include <stdlib.h>
+*/
+import "C"
+
+/*
  * This represents a single request. The request, in turn, drives HTTP.
  * It is assumed that all function calls for a single request happen in the same
  * goroutine (that will be the case for an Nginx worker). However, request
@@ -91,10 +96,18 @@ func (r *Request) startRequest(rawHeaders string) {
 }
 
 func (r *Request) sendBodyChunk(chunk []byte) {
-  // TODO this should really be a byte array
+  if len(chunk) == 0 {
+    return
+  }
+
+  chunkLen := uint32(len(chunk))
+  chunkPtr := C.malloc(C.size_t(chunkLen))
+  copy((*[1<<30]byte)(chunkPtr)[:], chunk[:])
+  chunkID := GoStoreChunk(chunkPtr, chunkLen)
+
   cmd := command{
     id: WBOD,
-    msg: fmt.Sprintf("%x %s", len(chunk), string(chunk)),
+    msg: fmt.Sprintf("%x", chunkID),
   }
   r.cmds <- cmd
 }
