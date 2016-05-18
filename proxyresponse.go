@@ -12,7 +12,7 @@ import (
  */
 
 type httpResponse struct {
-  req *Request
+  req *request
   httpReq *http.Request
   headers *http.Header
   headersFlushed bool

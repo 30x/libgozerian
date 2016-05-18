@@ -12,10 +12,38 @@ import (
 import "C"
 
 /*
+ * This object is passed to the request handler so that we can give it a lot
+ * of context.
+ */
+type RequestContext interface {
+  // Read-only information about the incoming HTTP request.
+  Request() *http.Request
+
+  // Object that may be used to generate a response. If a response is
+  // written using this object, then the call to the target is skipped and
+  // this response is sent directly back to the client.
+  Response() http.ResponseWriter
+
+  // An object that may be used to modify the request before it is
+  // forwarded to the target
+  ProxyRequest() *ProxyRequest
+
+  // If this method is called, then filterFunc is called with the headers
+  // returned from the target server. The caller will have the opportunity
+  // to modify the headers.
+  SetHeaderFilter(func (hdrs http.Header) http.Header)
+
+  // If this method is called, then filterFunc will be called, possibly
+  // multiple times, with the body returned from the target server.
+  // The caller is responsible for returning the possibly-modified body.
+  SetBodyFilter(func (body []byte, last bool) []byte)
+}
+
+/*
  * The final purpose of this whole module is to call this function.
  */
 type RequestHandler interface {
-  HandleRequest(resp http.ResponseWriter, req *http.Request, proxyReq *ProxyRequest)
+  HandleRequest(ctx RequestContext)
 }
 
 /*
@@ -167,6 +195,22 @@ func GoSendRequestBodyChunk(id uint32, l int32, data unsafe.Pointer, len uint32)
   var last bool
   if l != 0 { last = true }
   SendRequestBodyChunk(id, last, buf)
+}
+
+/*
+ * Transform a set of headers from the proxy response. The headers are passed
+ * in a string in the same format as produced by the "WHDR" command.
+ * The callback may return a new set of headers in the same format,
+ * or NULL to indicate that the headers are unchanged.
+ */
+//export GoTransformHeaders
+func GoTransformHeaders(id uint32, hdrs *C.char) *C.char {
+  hdrString := C.GoString(hdrs)
+  newHdrs := TransformHeaders(id, hdrString)
+  if newHdrs == "" {
+    return nil
+  }
+  return C.CString(newHdrs)
 }
 
 /*

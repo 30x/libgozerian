@@ -35,8 +35,8 @@ type testRequestHandler struct {
 // help us a bit by saving test results for internal comparison
 var lastTestBody []byte
 
-func (h *testRequestHandler) HandleRequest(resp http.ResponseWriter, req *http.Request, proxyReq *ProxyRequest) {
-  switch req.URL.Path {
+func (h *testRequestHandler) HandleRequest(ctx RequestContext) {
+  switch ctx.Request().URL.Path {
   case "/pass":
     // Nothing to do
 
@@ -44,65 +44,72 @@ func (h *testRequestHandler) HandleRequest(resp http.ResponseWriter, req *http.R
     time.Sleep(time.Second)
 
   case "/readbody":
-    buf, err := ioutil.ReadAll(req.Body)
+    buf, err := ioutil.ReadAll(ctx.Request().Body)
     if err != nil {
       fmt.Printf("Error reading body: %v\n", err)
     }
     lastTestBody = buf
-    req.Body.Close()
+    ctx.Request().Body.Close()
 
   case "/readbodyslow":
     tmp := make([]byte, 2)
     buf := &bytes.Buffer{}
-    len, _ := req.Body.Read(tmp)
+    len, _ := ctx.Request().Body.Read(tmp)
     for len > 0 {
       buf.Write(tmp[0:len])
-      len, _ = req.Body.Read(tmp)
+      len, _ = ctx.Request().Body.Read(tmp)
     }
     lastTestBody = buf.Bytes()
-    req.Body.Close()
+    ctx.Request().Body.Close()
 
   case "/readanddiscard":
     tmp := make([]byte, 2)
-    req.Body.Read(tmp)
-    req.Body.Close()
+    ctx.Request().Body.Read(tmp)
+    ctx.Request().Body.Close()
 
   case "/replacebody":
-    proxyReq.Write([]byte("Hello! I am the server!"))
+    ctx.ProxyRequest().Write([]byte("Hello! I am the server!"))
 
   case "/writeheaders":
-    proxyReq.Header().Add("Server", "Go Test Stuff")
-    proxyReq.Header().Add("X-Apigee-Test", "HeaderTest")
+    ctx.ProxyRequest().Header().Add("Server", "Go Test Stuff")
+    ctx.ProxyRequest().Header().Add("X-Apigee-Test", "HeaderTest")
 
   case "/writepath":
     newURL, _ := url.Parse("/newpath")
-    proxyReq.SetURL(newURL)
+    ctx.ProxyRequest().SetURL(newURL)
 
   case "/return201":
-    resp.WriteHeader(http.StatusCreated)
+    ctx.Response().WriteHeader(http.StatusCreated)
 
   case "/returnheaders":
-    resp.Header().Add("X-Apigee-Test", "Return Header Test")
-    resp.WriteHeader(http.StatusOK)
+    ctx.Response().Header().Add("X-Apigee-Test", "Return Header Test")
+    ctx.Response().WriteHeader(http.StatusOK)
 
   case "/returnbody":
-    resp.Write([]byte("Hello! I am the server!"))
+    ctx.Response().Write([]byte("Hello! I am the server!"))
 
   case "/completerequest":
     newURL, _ := url.Parse("/totallynewurl")
-    proxyReq.SetURL(newURL)
-    proxyReq.Header().Add("X-Apigee-Test", "Complete")
-    proxyReq.Write([]byte("Hello Again! "))
-    proxyReq.Write([]byte("Time for a complete rewrite!"))
+    ctx.ProxyRequest().SetURL(newURL)
+    ctx.ProxyRequest().Header().Add("X-Apigee-Test", "Complete")
+    ctx.ProxyRequest().Write([]byte("Hello Again! "))
+    ctx.ProxyRequest().Write([]byte("Time for a complete rewrite!"))
 
   case "/completeresponse":
-    ioutil.ReadAll(req.Body)
-    resp.Header().Add("X-Apigee-Test", "Complete")
-    resp.WriteHeader(http.StatusCreated)
-    resp.Write([]byte("Hello Again! "))
-    resp.Write([]byte("Time for a complete rewrite!"))
+    ioutil.ReadAll(ctx.Request().Body)
+    ctx.Request().Body.Close()
+    ctx.Response().Header().Add("X-Apigee-Test", "Complete")
+    ctx.Response().WriteHeader(http.StatusCreated)
+    ctx.Response().Write([]byte("Hello Again! "))
+    ctx.Response().Write([]byte("Time for a complete rewrite!"))
+
+  case "/writeresponseheaders":
+    ctx.SetHeaderFilter(func(h http.Header) http.Header {
+      h.Add("X-Apigee-ResponseHeader", "yes")
+      return h
+    })
 
   default:
-    resp.WriteHeader(http.StatusNotFound)
+    ctx.Response().WriteHeader(http.StatusNotFound)
   }
 }

@@ -10,7 +10,7 @@ import (
 import "C"
 
 type requestBody struct {
-  req *Request
+  req *request
   started bool
   curBuf []byte
 }

@@ -3,6 +3,7 @@ package main
 import (
   "fmt"
   "sync"
+  "net/http"
 )
 
 /*
@@ -16,7 +17,7 @@ import (
  * a lock around it.
  */
 
-var requests = make(map[uint32]*Request)
+var requests = make(map[uint32]*request)
 var requestsLock = &sync.Mutex{}
 var lastRequestID uint32
 
@@ -30,7 +31,7 @@ func CreateRequest() uint32 {
   // After 2BB requests we will roll over. That should not be a problem.
   lastRequestID++
   id := lastRequestID
-  req := NewRequest(id)
+  req := newRequest(id)
   requests[id] = req
   return id
 }
@@ -44,7 +45,7 @@ func BeginRequest(id uint32, rawHeaders string) error {
     return fmt.Errorf("Unknown request: %d", id)
   }
 
-  return req.Begin(rawHeaders)
+  return req.begin(rawHeaders)
 }
 
 /*
@@ -57,9 +58,9 @@ func PollRequest(id uint32, block bool) string {
   if req == nil { return "" }
 
   if block {
-    return req.Poll()
+    return req.poll()
   }
-  return req.PollNB()
+  return req.pollNB()
 }
 
 /*
@@ -83,7 +84,21 @@ func SendRequestBodyChunk(id uint32, last bool, chunk []byte) {
   }
 }
 
-func getRequest(id uint32) *Request {
+func TransformHeaders(id uint32, hdrString string) string {
+  req := getRequest(id)
+  if req == nil { return "" }
+  if req.headerFilter == nil { return "" }
+
+  hdrs := http.Header{}
+  parseHeaders(hdrs, hdrString)
+  outHdrs := req.headerFilter(hdrs)
+  if outHdrs == nil {
+    return ""
+  }
+  return serializeHeaders(outHdrs)
+}
+
+func getRequest(id uint32) *request {
   requestsLock.Lock()
   defer requestsLock.Unlock()
   return requests[id]

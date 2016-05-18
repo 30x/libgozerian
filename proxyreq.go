@@ -11,7 +11,7 @@ import (
  * will affect what is passed on to the target.
  */
 type ProxyRequest struct {
-  req *Request
+  req *request
   httpReq *http.Request
   headers *http.Header
   url *url.URL
@@ -49,7 +49,7 @@ func (p *ProxyRequest) flush() {
     return
   }
   p.headersFlushed = true
-  
+
   if p.url != nil {
     uriCmd := command{
       id: WURI,

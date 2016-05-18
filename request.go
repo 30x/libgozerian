@@ -22,7 +22,12 @@ const (
   bodyQueueSize = 2
 )
 
-type Request struct {
+type request struct {
+  req *http.Request
+  resp *httpResponse
+  proxyReq *ProxyRequest
+  headerFilter func (hdrs http.Header) http.Header
+  bodyFilter func (body []byte, last bool) []byte
   id uint32
   cmds chan command
   bodies chan []byte
@@ -30,22 +35,22 @@ type Request struct {
   readerClosed bool
 }
 
-func NewRequest(id uint32) *Request {
-  r := Request{
+func newRequest(id uint32) *request {
+  r := request{
     id: id,
     proxying: true,
   }
   return &r
 }
 
-func (r *Request) Begin(rawHeaders string) error {
+func (r *request) begin(rawHeaders string) error {
   r.cmds = make(chan command, commandQueueSize)
   r.bodies = make(chan []byte, bodyQueueSize)
   go r.startRequest(rawHeaders)
   return nil
 }
 
-func (r *Request) PollNB() string {
+func (r *request) pollNB() string {
   select {
   case cmd := <- r.cmds:
     return cmd.String()
@@ -54,19 +59,20 @@ func (r *Request) PollNB() string {
   }
 }
 
-func (r* Request) Poll() string {
+func (r* request) poll() string {
   cmd := <- r.cmds
   return cmd.String()
 }
 
-func (r *Request) startRequest(rawHeaders string) {
+func (r *request) startRequest(rawHeaders string) {
   req, err := parseHTTPHeaders(rawHeaders, true)
   if err != nil {
     r.cmds <- createErrorCommand(err)
     return
   }
+  r.req = req
 
-  resp := &httpResponse{
+  r.resp = &httpResponse{
     req: r,
     httpReq: req,
   }
@@ -75,27 +81,27 @@ func (r *Request) startRequest(rawHeaders string) {
     req: r,
   }
 
-  proxyReq := &ProxyRequest{
+  r.proxyReq = &ProxyRequest{
     req: r,
     httpReq: req,
   }
 
   // Call handlers. They may write the request body or headers, or start
   // to write out a response.
-  mainHandler.HandleRequest(resp, req, proxyReq)
+  mainHandler.HandleRequest(r)
 
   // It's possible that not everything was cleaned up here.
   if r.proxying {
-    proxyReq.flush()
+    r.proxyReq.flush()
   } else {
-    resp.flush(http.StatusOK)
+    r.resp.flush(http.StatusOK)
   }
 
   // This signals that everything is done.
   r.cmds <- command{id: CmdDone}
 }
 
-func (r *Request) sendBodyChunk(chunk []byte) {
+func (r *request) sendBodyChunk(chunk []byte) {
   if len(chunk) == 0 {
     return
   }
@@ -110,4 +116,24 @@ func (r *Request) sendBodyChunk(chunk []byte) {
     msg: fmt.Sprintf("%x", chunkID),
   }
   r.cmds <- cmd
+}
+
+func (r *request) Request() *http.Request {
+  return r.req
+}
+
+func (r *request) Response() http.ResponseWriter {
+  return r.resp
+}
+
+func (r *request) ProxyRequest() *ProxyRequest {
+  return r.proxyReq
+}
+
+func (r *request) SetHeaderFilter(filterFunc func (hdrs http.Header) http.Header) {
+  r.headerFilter = filterFunc
+}
+
+func (r *request) SetBodyFilter(filterFunc func (body []byte, last bool) []byte) {
+  r.bodyFilter = filterFunc
 }
