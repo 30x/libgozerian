@@ -106,16 +106,21 @@ func (r *request) sendBodyChunk(chunk []byte) {
     return
   }
 
-  chunkLen := uint32(len(chunk))
-  chunkPtr := C.malloc(C.size_t(chunkLen))
-  copy((*[1<<30]byte)(chunkPtr)[:], chunk[:])
-  chunkID := GoStoreChunk(chunkPtr, chunkLen)
+  chunkID := allocateChunk(chunk)
 
   cmd := command{
     id: WBOD,
     msg: fmt.Sprintf("%x", chunkID),
   }
   r.cmds <- cmd
+}
+
+func allocateChunk(chunk []byte) int32 {
+  chunkLen := uint32(len(chunk))
+  chunkPtr := C.malloc(C.size_t(chunkLen))
+  copy((*[1<<30]byte)(chunkPtr)[:], chunk[:])
+  chunkID := GoStoreChunk(chunkPtr, chunkLen)
+  return chunkID
 }
 
 func (r *request) Request() *http.Request {

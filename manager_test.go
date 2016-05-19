@@ -317,7 +317,7 @@ func makeHeaders(method, uri, contentType string, bodyLen int) string {
 }
 
 func readBodyData(cmd string) []byte {
-  id, err := strconv.ParseUint(cmd[4:], 16, 32)
+  id, err := strconv.ParseInt(cmd[4:], 16, 32)
   Expect(err).Should(Succeed())
-  return readChunk(uint32(id), true)
+  return readChunk(int32(id), true)
 }

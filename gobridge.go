@@ -51,13 +51,13 @@ type RequestHandler interface {
  */
 
 type chunk struct {
-  id uint32
+  id int32
   len uint32
   data unsafe.Pointer
 }
 
-var lastChunkID uint32
-var chunks = make(map[uint32]chunk)
+var lastChunkID int32 = 1
+var chunks = make(map[int32]chunk)
 var chunkLock = sync.Mutex{}
 
 /*
@@ -92,11 +92,14 @@ func GoFreeRequest(id uint32) {
  * request. A chunk ID will be returned.
  */
 //export GoStoreChunk
-func GoStoreChunk(data unsafe.Pointer, len uint32) uint32 {
+func GoStoreChunk(data unsafe.Pointer, len uint32) int32 {
   chunkLock.Lock()
   defer chunkLock.Unlock()
 
   lastChunkID++
+  if lastChunkID < 0 {
+    lastChunkID = 1
+  }
   c := chunk{
     id: lastChunkID,
     len: len,
@@ -112,7 +115,7 @@ func GoStoreChunk(data unsafe.Pointer, len uint32) uint32 {
  * actually calling "free".
  */
 //export GoReleaseChunk
-func GoReleaseChunk(id uint32) {
+func GoReleaseChunk(id int32) {
   releaseChunk(id)
 }
 
@@ -120,7 +123,7 @@ func GoReleaseChunk(id uint32) {
  * Retrieve the pointer to a chunk of data stored using "GoStoreChunk".
  */
 //export GoGetChunk
-func GoGetChunk(id uint32) unsafe.Pointer {
+func GoGetChunk(id int32) unsafe.Pointer {
   return getChunk(id).data
 }
 
@@ -128,17 +131,17 @@ func GoGetChunk(id uint32) unsafe.Pointer {
  * Retrieve the length of a specific chunk.
  */
 //export GoGetChunkLength
-func GoGetChunkLength(id uint32) uint32 {
+func GoGetChunkLength(id int32) uint32 {
   return getChunk(id).len
 }
 
-func getChunk(id uint32) chunk {
+func getChunk(id int32) chunk {
   chunkLock.Lock()
   defer chunkLock.Unlock()
   return chunks[id]
 }
 
-func releaseChunk(id uint32)  {
+func releaseChunk(id int32)  {
   chunkLock.Lock()
   defer chunkLock.Unlock()
   delete(chunks, id)
@@ -189,7 +192,7 @@ func GoPollRequest(id uint32, block int32) *C.char {
 func GoSendRequestBodyChunk(id uint32, l int32, data unsafe.Pointer, len uint32) {
   var buf []byte
   if data != nil && len > 0 {
-    buf := make([]byte, len)
+    buf = make([]byte, len)
     copy(buf[:], (*[1<<30]byte)(data)[:])
   }
   var last bool
@@ -202,6 +205,8 @@ func GoSendRequestBodyChunk(id uint32, l int32, data unsafe.Pointer, len uint32)
  * in a string in the same format as produced by the "WHDR" command.
  * The callback may return a new set of headers in the same format,
  * or NULL to indicate that the headers are unchanged.
+ * Due to limitations in nginx, this method is called synchronously,
+ * so it must avoid doing work that would block the thread.
  */
 //export GoTransformHeaders
 func GoTransformHeaders(id uint32, hdrs *C.char) *C.char {
@@ -211,6 +216,42 @@ func GoTransformHeaders(id uint32, hdrs *C.char) *C.char {
     return nil
   }
   return C.CString(newHdrs)
+}
+
+/*
+ * Transform a chunk of the response body.
+ * Due to limitations in nginx, this method is called synchronously,
+ * so it must avoid doing work that would block the thread.
+ * This function will return one of three values:
+ *   A negative value indicates that the original chunk should be passed unchanged.
+ *   A value of zero indicates that the original chunk should not be used at all.
+ *   A value greater than zero is a chunk ID of a chunk containing the new chunk.
+ * The caller should free BOTH the input data and the response chunk when done.
+ * If the second parameter is non-zero, then this request is the last chunk.
+ */
+//export GoTransformBodyChunk
+func GoTransformBodyChunk(id uint32, l int32, data unsafe.Pointer, len uint32) int32 {
+  var buf []byte
+  if data != nil && len > 0 {
+    buf = make([]byte, len)
+    copy(buf[:], (*[1<<30]byte)(data)[:])
+  }
+  var last bool
+  if l != 0 { last = true }
+
+  newChunk := TransformBodyChunk(id, last, buf)
+
+  if newChunk == nil {
+    return -1
+  }
+  /* WTF
+  if len(newChunk) == 0 {
+    return 0
+  }
+  */
+
+  chunkID := allocateChunk(newChunk)
+  return int32(chunkID)
 }
 
 /*

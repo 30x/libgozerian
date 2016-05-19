@@ -98,6 +98,15 @@ func TransformHeaders(id uint32, hdrString string) string {
   return serializeHeaders(outHdrs)
 }
 
+func TransformBodyChunk(id uint32, last bool, chunk []byte) []byte {
+  req := getRequest(id)
+  if req == nil { return nil }
+  if req.bodyFilter == nil { return nil }
+
+  outChunk := req.bodyFilter(chunk, last)
+  return outChunk
+}
+
 func getRequest(id uint32) *request {
   requestsLock.Lock()
   defer requestsLock.Unlock()

@@ -109,6 +109,25 @@ func (h *testRequestHandler) HandleRequest(ctx RequestContext) {
       return h
     })
 
+  case "/transformbody":
+    ctx.SetBodyFilter(func(c []byte, last bool) []byte {
+      if last {
+        return []byte("This body has been transformed.")
+      }
+      return make([]byte, 0)
+    })
+
+  case "/donttransformbody":
+    ctx.SetBodyFilter(func(c []byte, last bool) []byte {
+      return c
+    })
+
+  case "/transformbodychunks":
+    ctx.SetBodyFilter(func(c []byte, last bool) []byte {
+      s := fmt.Sprintf("{%v} (len %d last %v)", c, len(c), last)
+      return []byte(s)
+    })
+
   default:
     ctx.Response().WriteHeader(http.StatusNotFound)
   }

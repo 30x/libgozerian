@@ -59,7 +59,7 @@ func (b *requestBody) Close() error {
 
 // Utility used in testing
 
-func readChunk(id uint32, release bool) []byte {
+func readChunk(id int32, release bool) []byte {
   c := getChunk(id)
   ret := make([]byte, c.len)
   copy(ret[:], (*[1<<30]byte)(c.data)[:])
