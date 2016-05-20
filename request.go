@@ -35,8 +35,6 @@ type request struct {
   origHeaders http.Header
   origURL *url.URL
   origBody io.ReadCloser
-  headerFilter func (hdrs http.Header) http.Header
-  bodyFilter func (body []byte, last bool) []byte
   id uint32
   cmds chan command
   bodies chan []byte
@@ -50,6 +48,17 @@ func newRequest(id uint32) *request {
     proxying: true,
   }
   return &r
+}
+
+func (r *request) Commands() chan command {
+  return r.cmds
+}
+
+func (r *request) Bodies() chan []byte {
+  return r.bodies
+}
+
+func (r *request) StartRead() {
 }
 
 func (r *request) begin(rawHeaders string) error {
@@ -91,7 +100,7 @@ func (r *request) startRequest(rawHeaders string) {
   r.resp = resp
 
   req.Body = &requestBody{
-    req: r,
+    handler: r,
   }
   r.origBody = req.Body
 
@@ -110,7 +119,17 @@ func (r *request) startRequest(rawHeaders string) {
   r.cmds <- command{id: CmdDone}
 }
 
-func (r *request) sendBodyChunk(chunk []byte) {
+func readAndSend(handler commandHandler, body io.ReadCloser) {
+  defer body.Close()
+  buf := make([]byte, bodyBufSize)
+  len, _ := body.Read(buf)
+  for len > 0 {
+    sendBodyChunk(handler, buf[:len])
+    len, _ = body.Read(buf)
+  }
+}
+
+func sendBodyChunk(handler commandHandler, chunk []byte) {
   if len(chunk) == 0 {
     return
   }
@@ -121,7 +140,7 @@ func (r *request) sendBodyChunk(chunk []byte) {
     id: WBOD,
     msg: fmt.Sprintf("%x", chunkID),
   }
-  r.cmds <- cmd
+  handler.Commands() <- cmd
 }
 
 func allocateChunk(chunk []byte) int32 {
@@ -148,22 +167,8 @@ func (r *request) flush() {
     r.cmds <- hdrCmd
   }
   if r.req.Body != r.origBody {
-    defer r.req.Body.Close()
-    buf := make([]byte, bodyBufSize)
-    len, _ := r.req.Body.Read(buf)
-    for len > 0 {
-      r.sendBodyChunk(buf[:len])
-      len, _ = r.req.Body.Read(buf)
-    }
+    readAndSend(r, r.req.Body)
   }
-}
-
-func (r *request) SetHeaderFilter(filterFunc func (hdrs http.Header) http.Header) {
-  r.headerFilter = filterFunc
-}
-
-func (r *request) SetBodyFilter(filterFunc func (body []byte, last bool) []byte) {
-  r.bodyFilter = filterFunc
 }
 
 func copyHeaders(hdr http.Header) http.Header {

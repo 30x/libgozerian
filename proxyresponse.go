@@ -36,7 +36,7 @@ func (h *httpResponse) Write(buf []byte) (int, error) {
   // Flush ensures that headers are written only once and the first time
   h.req.proxying = false
   h.flush(http.StatusOK)
-  h.req.sendBodyChunk(buf)
+  sendBodyChunk(h.req, buf)
   return len(buf), nil
 }
 

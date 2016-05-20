@@ -114,36 +114,41 @@ func (h *testRequestHandler) ServeHTTP(resp http.ResponseWriter, req *http.Reque
 
   case "/transformbodychunks":
 
+  case "/responseerror":
+
   default:
     resp.WriteHeader(http.StatusNotFound)
   }
 }
 
-func (h *testRequestHandler) HandleResponse(req *http.Request, ctx ResponseContext) {
-  switch req.URL.Path {
+func (h *testRequestHandler) HandleResponse(resp *http.Response) {
+  switch resp.Request.URL.Path {
     case "/writeresponseheaders":
-      ctx.SetHeaderFilter(func(h http.Header) http.Header {
-        h.Add("X-Apigee-ResponseHeader", "yes")
-        return h
-      })
+      resp.Header.Set("X-Apigee-ResponseHeader", "yes")
 
     case "/transformbody":
-      ctx.SetBodyFilter(func(c []byte, last bool) []byte {
-        if last {
-          return []byte("This body has been transformed.")
-        }
-        return make([]byte, 0)
-      })
+      resp.Body = ioutil.NopCloser(
+        bytes.NewReader([]byte("We have transformed the response!")))
 
-    case "/donttransformbody":
-      ctx.SetBodyFilter(func(c []byte, last bool) []byte {
-        return c
-      })
+    case "/responseerror":
+      resp.StatusCode = http.StatusInternalServerError
+      resp.Body = ioutil.NopCloser(
+        bytes.NewReader([]byte("Error in the server!")))
 
     case "/transformbodychunks":
-      ctx.SetBodyFilter(func(c []byte, last bool) []byte {
-        s := fmt.Sprintf("{%v} (len %d last %v)", c, len(c), last)
-        return []byte(s)
-      })
+      resp.Header.Set("X-Apigee-Transformed", "yes")
+      defer resp.Body.Close()
+
+      buf := &bytes.Buffer{}
+      rb := make([]byte, 128)
+      len, _ := resp.Body.Read(rb)
+      for len > 0 {
+        s := fmt.Sprintf("{ %v }\n", rb[:len])
+        buf.WriteString(s)
+        len, _ = resp.Body.Read(rb)
+      }
+      resp.Body = ioutil.NopCloser(buf)
+
+      resp.Header.Set("X-Apigee-Invisible", "yes")
   }
 }

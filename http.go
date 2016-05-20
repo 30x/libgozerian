@@ -48,6 +48,35 @@ func parseHTTPHeaders(rawHeaders string, hasRequestLine bool) (*http.Request, er
   return &req, nil
 }
 
+func parseHTTPResponse(status uint32, rawHeaders string) (*http.Response, error) {
+  resp := http.Response{
+    Header: make(map[string][]string),
+    StatusCode: int(status),
+    Status: http.StatusText(int(status)),
+    // Faking this for now
+    Proto: "HTTP/1.1",
+    ProtoMajor: 1,
+    ProtoMinor: 1,
+  }
+
+  parseHeaders(resp.Header, rawHeaders)
+
+  clHeader := resp.Header.Get("Content-Length")
+  if clHeader != "" {
+    cl, err := strconv.ParseInt(clHeader, 10, 64)
+    if err != nil {
+      resp.ContentLength = cl
+    }
+  }
+
+  closeHeader := resp.Header.Get("Connection")
+  if closeHeader == "close" {
+    resp.Close = true
+  }
+
+  return &resp, nil
+}
+
 //serialize the headersMap back to a string
 func serializeHeaders(headerMap http.Header) string {
 	var buffer bytes.Buffer

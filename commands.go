@@ -13,6 +13,7 @@ const (
   RBOD
   WHDR
   WURI
+  WSTA
   SWCH
   WBOD
   BEND

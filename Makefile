@@ -11,6 +11,10 @@ test:
 race:
 	go test -race
 
+cover:
+	go test --coverprofile=cov.out
+	go tool cover --html=cov.out
+
 graph: states.png
 
 states.png: states.dot

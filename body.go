@@ -10,22 +10,23 @@ import (
 import "C"
 
 type requestBody struct {
-  req *request
+  handler commandHandler
   started bool
   curBuf []byte
 }
 
 func (b *requestBody) Read(buf []byte) (int, error) {
   if !b.started {
+    b.handler.StartRead()
     // First tell the caller that we need some data.
-    b.req.cmds <- command{id: CmdGetBody}
+    b.handler.Commands() <- command{id: CmdGetBody}
     b.started = true
   }
 
   cb := b.curBuf
   if cb == nil {
     // Will return nil at end of channel.
-    cb = <- b.req.bodies
+    cb = <- b.handler.Bodies()
   }
 
   if cb == nil {
@@ -48,9 +49,9 @@ func (b *requestBody) Close() error {
   if b.started {
     // Need to clear the channel.
     b.curBuf = nil
-    drained := <- b.req.bodies
+    drained := <- b.handler.Bodies()
     for drained != nil {
-      drained = <- b.req.bodies
+      drained = <- b.handler.Bodies()
     }
     b.started = false
   }

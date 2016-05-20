@@ -3,7 +3,6 @@ package main
 import (
   "fmt"
   "sync"
-  "net/http"
 )
 
 /*
@@ -18,21 +17,45 @@ import (
  */
 
 var requests = make(map[uint32]*request)
-var requestsLock = &sync.Mutex{}
-var lastRequestID uint32
+var responses = make(map[uint32]*response)
+var managerLatch = &sync.Mutex{}
+var lastID uint32
+
+/*
+ * Common interface for requests and responses
+ */
+type commandHandler interface {
+  Commands() chan command
+  Bodies() chan []byte
+  StartRead()
+}
 
 /*
  * Create a new request object. It should be used once and only once.
  */
 func CreateRequest() uint32 {
-  requestsLock.Lock()
-  defer requestsLock.Unlock()
+  managerLatch.Lock()
+  defer managerLatch.Unlock()
 
   // After 2BB requests we will roll over. That should not be a problem.
-  lastRequestID++
-  id := lastRequestID
+  lastID++
+  id := lastID
   req := newRequest(id)
   requests[id] = req
+  return id
+}
+
+/*
+ * Create a new response object. It should be used once and only once.
+ */
+func CreateResponse() uint32 {
+  managerLatch.Lock()
+  defer managerLatch.Unlock()
+
+  lastID++
+  id := lastID
+  r := newResponse(id)
+  responses[id] = r
   return id
 }
 
@@ -46,6 +69,19 @@ func BeginRequest(id uint32, rawHeaders string) error {
   }
 
   return req.begin(rawHeaders)
+}
+
+func BeginResponse(responseID, requestID, status uint32, rawHeaders string) error {
+  r := getResponse(responseID)
+  if r == nil {
+    return fmt.Errorf("Unknown response: %d", responseID)
+  }
+  req := getRequest(requestID)
+  if req == nil {
+    return fmt.Errorf("Unknown request: %d", requestID)
+  }
+
+  return r.begin(status, rawHeaders, req)
 }
 
 /*
@@ -63,11 +99,29 @@ func PollRequest(id uint32, block bool) string {
   return req.pollNB()
 }
 
+func PollResponse(id uint32, block bool) string {
+  req := getResponse(id)
+  if req == nil { return "" }
+
+  if block {
+    return req.poll()
+  }
+  return req.pollNB()
+}
+
 /*
  * Free the slot for a request.
  */
 func FreeRequest(id uint32) {
-  deleteRequest(id)
+  managerLatch.Lock()
+  delete(requests, id)
+  managerLatch.Unlock()
+}
+
+func FreeResponse(id uint32) {
+  managerLatch.Lock()
+  delete(responses, id)
+  managerLatch.Unlock()
 }
 
 /*
@@ -75,46 +129,32 @@ func FreeRequest(id uint32) {
  */
 func SendRequestBodyChunk(id uint32, last bool, chunk []byte) {
   req := getRequest(id)
-  if req == nil { return }
+  sendChunk(req, last, chunk)
+}
+
+func SendResponseBodyChunk(id uint32, last bool, chunk []byte) {
+  resp := getResponse(id)
+  sendChunk(resp, last, chunk)
+}
+
+func sendChunk(h commandHandler, last bool, chunk []byte) {
+  if h == nil { return }
   if len(chunk) > 0 {
-    req.bodies <- chunk
+    h.Bodies() <- chunk
   }
   if last {
-    close(req.bodies)
+    close(h.Bodies())
   }
-}
-
-func TransformHeaders(id uint32, hdrString string) string {
-  req := getRequest(id)
-  if req == nil { return "" }
-  if req.headerFilter == nil { return "" }
-
-  hdrs := http.Header{}
-  parseHeaders(hdrs, hdrString)
-  outHdrs := req.headerFilter(hdrs)
-  if outHdrs == nil {
-    return ""
-  }
-  return serializeHeaders(outHdrs)
-}
-
-func TransformBodyChunk(id uint32, last bool, chunk []byte) []byte {
-  req := getRequest(id)
-  if req == nil { return nil }
-  if req.bodyFilter == nil { return nil }
-
-  outChunk := req.bodyFilter(chunk, last)
-  return outChunk
 }
 
 func getRequest(id uint32) *request {
-  requestsLock.Lock()
-  defer requestsLock.Unlock()
+  managerLatch.Lock()
+  defer managerLatch.Unlock()
   return requests[id]
 }
 
-func deleteRequest(id uint32) {
-  requestsLock.Lock()
-  delete(requests, id)
-  requestsLock.Unlock()
+func getResponse(id uint32) *response {
+  managerLatch.Lock()
+  defer managerLatch.Unlock()
+  return responses[id]
 }

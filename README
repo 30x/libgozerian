@@ -34,6 +34,9 @@ the response headers.
 target server is changed to the new value. Otherwise, the caller should
 replace only the path. This command will never be sent after a SWCH.
 
+### WSTA
+  This replaces the status code in a response message.
+
 ### SWCH
    This indicates a switch from running in proxy mode to generating a
 request entirely. Once SWCH is sent, subsequent calls to WHDR and WBOD
@@ -72,6 +75,11 @@ by the new URI.
 
 The SWCH message consists of the four characters "SWCH" followed immediately
 by the response code, represented as a UTF-8 encoded string in base 10.
+
+### Status Code
+
+The WSTA message consists of the four characters "WSTA" followed immediately
+by the new HTTP status code, represented as a UTF-8 encoded string in base 10.
 
 ### Body Chunk
 
