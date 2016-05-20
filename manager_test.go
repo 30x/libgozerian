@@ -240,14 +240,8 @@ var _ = Describe("Go Management Interface", func() {
 
     cmd = doPoll(id)
     Expect(cmd).Should(MatchRegexp("^WBOD.*"))
-    expectedBod := []byte("Hello Again! ")
+    expectedBod := []byte("Hello Again! Time for a complete rewrite!")
     bod := readBodyData(cmd)
-    Expect(bytes.Equal(expectedBod, bod)).Should(BeTrue())
-
-    cmd = doPoll(id)
-    Expect(cmd).Should(MatchRegexp("^WBOD.*"))
-    expectedBod = []byte("Time for a complete rewrite!")
-    bod = readBodyData(cmd)
     Expect(bytes.Equal(expectedBod, bod)).Should(BeTrue())
 
     cmd = doPoll(id)

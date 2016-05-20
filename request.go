@@ -2,13 +2,20 @@ package main
 
 import (
   "fmt"
+  "io"
+  "net/url"
   "net/http"
+  "reflect"
 )
 
 /*
 #include <stdlib.h>
 */
 import "C"
+
+const (
+  bodyBufSize = 32767
+)
 
 /*
  * This represents a single request. The request, in turn, drives HTTP.
@@ -25,7 +32,9 @@ const (
 type request struct {
   req *http.Request
   resp *httpResponse
-  proxyReq *ProxyRequest
+  origHeaders http.Header
+  origURL *url.URL
+  origBody io.ReadCloser
   headerFilter func (hdrs http.Header) http.Header
   bodyFilter func (body []byte, last bool) []byte
   id uint32
@@ -70,29 +79,29 @@ func (r *request) startRequest(rawHeaders string) {
     r.cmds <- createErrorCommand(err)
     return
   }
+  // Save headers for later
+  r.origHeaders = copyHeaders(req.Header)
+  r.origURL = req.URL
   r.req = req
 
-  r.resp = &httpResponse{
+  resp := &httpResponse{
     req: r,
     httpReq: req,
   }
+  r.resp = resp
 
   req.Body = &requestBody{
     req: r,
   }
-
-  r.proxyReq = &ProxyRequest{
-    req: r,
-    httpReq: req,
-  }
+  r.origBody = req.Body
 
   // Call handlers. They may write the request body or headers, or start
   // to write out a response.
-  mainHandler.HandleRequest(r)
+  mainHandler.ServeHTTP(resp, req)
 
   // It's possible that not everything was cleaned up here.
   if r.proxying {
-    r.proxyReq.flush()
+    r.flush()
   } else {
     r.resp.flush(http.StatusOK)
   }
@@ -123,16 +132,30 @@ func allocateChunk(chunk []byte) int32 {
   return chunkID
 }
 
-func (r *request) Request() *http.Request {
-  return r.req
-}
-
-func (r *request) Response() http.ResponseWriter {
-  return r.resp
-}
-
-func (r *request) ProxyRequest() *ProxyRequest {
-  return r.proxyReq
+func (r *request) flush() {
+  if r.origURL.String() != r.req.URL.String() {
+    uriCmd := command{
+      id: WURI,
+      msg: r.req.URL.String(),
+    }
+    r.cmds <- uriCmd
+  }
+  if !reflect.DeepEqual(r.origHeaders, r.req.Header) {
+    hdrCmd := command{
+      id: WHDR,
+      msg: serializeHeaders(r.req.Header),
+    }
+    r.cmds <- hdrCmd
+  }
+  if r.req.Body != r.origBody {
+    defer r.req.Body.Close()
+    buf := make([]byte, bodyBufSize)
+    len, _ := r.req.Body.Read(buf)
+    for len > 0 {
+      r.sendBodyChunk(buf[:len])
+      len, _ = r.req.Body.Read(buf)
+    }
+  }
 }
 
 func (r *request) SetHeaderFilter(filterFunc func (hdrs http.Header) http.Header) {
@@ -141,4 +164,16 @@ func (r *request) SetHeaderFilter(filterFunc func (hdrs http.Header) http.Header
 
 func (r *request) SetBodyFilter(filterFunc func (body []byte, last bool) []byte) {
   r.bodyFilter = filterFunc
+}
+
+func copyHeaders(hdr http.Header) http.Header {
+  newHeaders := http.Header{}
+  for k, v := range(hdr) {
+    newVal := make([]string, len(v))
+    for i := range(v) {
+      newVal[i] = v[i]
+    }
+    newHeaders[k] = newVal
+  }
+  return newHeaders
 }

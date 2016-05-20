@@ -15,19 +15,7 @@ import "C"
  * This object is passed to the request handler so that we can give it a lot
  * of context.
  */
-type RequestContext interface {
-  // Read-only information about the incoming HTTP request.
-  Request() *http.Request
-
-  // Object that may be used to generate a response. If a response is
-  // written using this object, then the call to the target is skipped and
-  // this response is sent directly back to the client.
-  Response() http.ResponseWriter
-
-  // An object that may be used to modify the request before it is
-  // forwarded to the target
-  ProxyRequest() *ProxyRequest
-
+type ResponseContext interface {
   // If this method is called, then filterFunc is called with the headers
   // returned from the target server. The caller will have the opportunity
   // to modify the headers.
@@ -43,7 +31,8 @@ type RequestContext interface {
  * The final purpose of this whole module is to call this function.
  */
 type RequestHandler interface {
-  HandleRequest(ctx RequestContext)
+  ServeHTTP(w http.ResponseWriter, r *http.Request)
+  HandleResponse(r *http.Request, ctx ResponseContext)
 }
 
 /*
