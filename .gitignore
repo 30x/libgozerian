@@ -1,3 +1,4 @@
 .vscode/
-gobridge.h
-gobridge.so
+libweaver.h
+libweaver.so
+weaver

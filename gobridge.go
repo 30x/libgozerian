@@ -1,22 +1,34 @@
 package main
 
 import (
-  "net/http"
-  "sync"
-  "unsafe"
+	"net/http"
+	"sync"
+	"unsafe"
 )
 
 /*
 #include <stdlib.h>
- */
+*/
 import "C"
 
 /*
- * The final purpose of this whole module is to call this function.
+ * The handler factory is responsible for creating separate handlers for different
+ * use cases. It is responsible for creating instances of Handler objects.
  */
-type RequestHandler interface {
-  ServeHTTP(w http.ResponseWriter, r *http.Request)
-  HandleResponse(r *http.Response)
+type HandlerFactory interface {
+	Create(id string) Handler
+}
+
+/*
+ * The handler object handles requests on behalf of a particular configuration,
+ * represented by a handler ID. Instances of this interface are created by the
+ * handler implementation by the HandlerFactory. Instances of this interface
+ * must be able to handle concurrent requests.
+ */
+type Handler interface {
+	ServeHTTP(w http.ResponseWriter, r *http.Request)
+	HandleResponse(r *http.Response)
+	Close()
 }
 
 /*
@@ -24,9 +36,9 @@ type RequestHandler interface {
  */
 
 type chunk struct {
-  id int32
-  len uint32
-  data unsafe.Pointer
+	id   int32
+	len  uint32
+	data unsafe.Pointer
 }
 
 var lastChunkID int32 = 1
@@ -41,13 +53,30 @@ var chunkLock = sync.Mutex{}
 // Functions below are the public C-language API for this code.
 
 /*
+ * Create a new handler. This tells the GO implementation to set up some
+ * resources for handling requests later.
+ */
+//export GoCreateHandler
+func GoCreateHandler(handlerID *C.char) {
+	CreateHandler(C.GoString(handlerID))
+}
+
+/*
+ * Destroy a handler previously related.
+ */
+//export GoDestroyHandler
+func GoDestroyHandler(handlerID *C.char) {
+	DestroyHandler(C.GoString(handlerID))
+}
+
+/*
  * Create a new "request" object and return its unique ID. The request
  * goes in a map, so it's important that the caller always call
  * GoFreeRequest or there will be a memory leak.
  */
 //export GoCreateRequest
-func GoCreateRequest() uint32 {
-  return CreateRequest()
+func GoCreateRequest(handlerID *C.char) uint32 {
+	return CreateRequest(C.GoString(handlerID))
 }
 
 /*
@@ -55,8 +84,8 @@ func GoCreateRequest() uint32 {
  * Like the request the response goes in a map and must be freed.
  */
 //export GoCreateResponse
-func GoCreateResponse() uint32 {
-  return CreateResponse()
+func GoCreateResponse(handlerID *C.char) uint32 {
+	return CreateResponse(C.GoString(handlerID))
 }
 
 /*
@@ -65,7 +94,7 @@ func GoCreateResponse() uint32 {
  */
 //export GoFreeRequest
 func GoFreeRequest(id uint32) {
-  FreeRequest(id)
+	FreeRequest(id)
 }
 
 /*
@@ -73,7 +102,7 @@ func GoFreeRequest(id uint32) {
  */
 //export GoFreeResponse
 func GoFreeResponse(id uint32) {
-  FreeResponse(id)
+	FreeResponse(id)
 }
 
 /*
@@ -83,20 +112,20 @@ func GoFreeResponse(id uint32) {
  */
 //export GoStoreChunk
 func GoStoreChunk(data unsafe.Pointer, len uint32) int32 {
-  chunkLock.Lock()
-  defer chunkLock.Unlock()
+	chunkLock.Lock()
+	defer chunkLock.Unlock()
 
-  lastChunkID++
-  if lastChunkID < 0 {
-    lastChunkID = 1
-  }
-  c := chunk{
-    id: lastChunkID,
-    len: len,
-    data: data,
-  }
-  chunks[lastChunkID] = c
-  return lastChunkID
+	lastChunkID++
+	if lastChunkID < 0 {
+		lastChunkID = 1
+	}
+	c := chunk{
+		id:   lastChunkID,
+		len:  len,
+		data: data,
+	}
+	chunks[lastChunkID] = c
+	return lastChunkID
 }
 
 /*
@@ -106,7 +135,7 @@ func GoStoreChunk(data unsafe.Pointer, len uint32) int32 {
  */
 //export GoReleaseChunk
 func GoReleaseChunk(id int32) {
-  releaseChunk(id)
+	releaseChunk(id)
 }
 
 /*
@@ -114,7 +143,7 @@ func GoReleaseChunk(id int32) {
  */
 //export GoGetChunk
 func GoGetChunk(id int32) unsafe.Pointer {
-  return getChunk(id).data
+	return getChunk(id).data
 }
 
 /*
@@ -122,19 +151,19 @@ func GoGetChunk(id int32) unsafe.Pointer {
  */
 //export GoGetChunkLength
 func GoGetChunkLength(id int32) uint32 {
-  return getChunk(id).len
+	return getChunk(id).len
 }
 
 func getChunk(id int32) chunk {
-  chunkLock.Lock()
-  defer chunkLock.Unlock()
-  return chunks[id]
+	chunkLock.Lock()
+	defer chunkLock.Unlock()
+	return chunks[id]
 }
 
-func releaseChunk(id int32)  {
-  chunkLock.Lock()
-  defer chunkLock.Unlock()
-  delete(chunks, id)
+func releaseChunk(id int32) {
+	chunkLock.Lock()
+	defer chunkLock.Unlock()
+	delete(chunks, id)
 }
 
 /*
@@ -148,7 +177,7 @@ func releaseChunk(id int32)  {
  */
 //export GoBeginRequest
 func GoBeginRequest(id uint32, rawHeaders *C.char) {
-  BeginRequest(id, C.GoString(rawHeaders))
+	BeginRequest(id, C.GoString(rawHeaders))
 }
 
 /*
@@ -164,11 +193,11 @@ func GoBeginRequest(id uint32, rawHeaders *C.char) {
  */
 //export GoPollRequest
 func GoPollRequest(id uint32, block int32) *C.char {
-  cmd := PollRequest(id, block != 0)
-  if cmd == "" {
-    return nil
-  }
-  return C.CString(cmd)
+	cmd := PollRequest(id, block != 0)
+	if cmd == "" {
+		return nil
+	}
+	return C.CString(cmd)
 }
 
 /*
@@ -180,8 +209,8 @@ func GoPollRequest(id uint32, block int32) *C.char {
  */
 //export GoSendRequestBodyChunk
 func GoSendRequestBodyChunk(id uint32, l int32, data unsafe.Pointer, len uint32) {
-  buf, last := copyPointer(l, data, len)
-  SendRequestBodyChunk(id, last, buf)
+	buf, last := copyPointer(l, data, len)
+	SendRequestBodyChunk(id, last, buf)
 }
 
 /*
@@ -193,7 +222,7 @@ func GoSendRequestBodyChunk(id uint32, l int32, data unsafe.Pointer, len uint32)
  */
 //export GoBeginResponse
 func GoBeginResponse(responseID, requestID, status uint32, hdrs *C.char) {
-  BeginResponse(responseID, requestID, status, C.GoString(hdrs))
+	BeginResponse(responseID, requestID, status, C.GoString(hdrs))
 }
 
 /*
@@ -202,11 +231,11 @@ func GoBeginResponse(responseID, requestID, status uint32, hdrs *C.char) {
  */
 //export GoPollResponse
 func GoPollResponse(id uint32, block int32) *C.char {
-  cmd := PollResponse(id, block != 0)
-  if cmd == "" {
-    return nil
-  }
-  return C.CString(cmd)
+	cmd := PollResponse(id, block != 0)
+	if cmd == "" {
+		return nil
+	}
+	return C.CString(cmd)
 }
 
 /*
@@ -214,10 +243,9 @@ func GoPollResponse(id uint32, block int32) *C.char {
  */
 //export GoSendResponseBodyChunk
 func GoSendResponseBodyChunk(id uint32, l int32, data unsafe.Pointer, len uint32) {
-  buf, last := copyPointer(l, data, len)
-  SendResponseBodyChunk(id, last, buf)
+	buf, last := copyPointer(l, data, len)
+	SendResponseBodyChunk(id, last, buf)
 }
-
 
 /*
  * This is a convenience function used to install a test handler that responds
@@ -225,20 +253,30 @@ func GoSendResponseBodyChunk(id uint32, l int32, data unsafe.Pointer, len uint32
  */
 //export GoInstallTestHandler
 func GoInstallTestHandler() {
-  SetTestRequestHandler()
+	SetTestRequestHandler()
 }
 
 func copyPointer(l int32, data unsafe.Pointer, len uint32) ([]byte, bool) {
-  var buf []byte
-  if data != nil && len > 0 {
-    buf = make([]byte, len)
-    copy(buf[:], (*[1<<30]byte)(data)[:])
-  }
-  var last bool
-  if l != 0 { last = true }
-  return buf, last
+	buf := ptrToSlice(data, len)
+	var last bool
+	if l != 0 {
+		last = true
+	}
+	return buf, last
 }
 
-func main() {
-  panic("This is a library. No main.");
+func ptrToSlice(p unsafe.Pointer, len uint32) []byte {
+	var buf []byte
+	if p != nil && len > 0 {
+		buf = make([]byte, len)
+		copy(buf[:], (*[1 << 30]byte)(p)[:])
+	}
+	return buf
+}
+
+func sliceToPtr(buf []byte) (unsafe.Pointer, uint32) {
+	l := C.size_t(len(buf))
+	ptr := C.malloc(l)
+	copy((*[1 << 30]byte)(ptr)[:], buf)
+	return ptr, uint32(l)
 }

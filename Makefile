@@ -1,8 +1,8 @@
-GOFILES = gobridge.go commands.go handler.go http.go manager.go request.go
+GOFILES = *.go
 
-all: gobridge.so
+all: libweaver.so
 
-gobridge.so: $(GOFILES)
+libweaver.so: $(GOFILES)
 	go build -buildmode=c-shared -o $@ 
 
 test:

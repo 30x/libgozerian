@@ -30,6 +30,7 @@ const (
 )
 
 type request struct {
+  handler Handler
   req *http.Request
   resp *httpResponse
   origHeaders http.Header
@@ -42,8 +43,9 @@ type request struct {
   readerClosed bool
 }
 
-func newRequest(id uint32) *request {
+func newRequest(id uint32, h Handler) *request {
   r := request{
+    handler: h,
     id: id,
     proxying: true,
   }
@@ -106,7 +108,7 @@ func (r *request) startRequest(rawHeaders string) {
 
   // Call handlers. They may write the request body or headers, or start
   // to write out a response.
-  mainHandler.ServeHTTP(resp, req)
+  r.handler.ServeHTTP(resp, req)
 
   // It's possible that not everything was cleaned up here.
   if r.proxying {
@@ -175,9 +177,7 @@ func copyHeaders(hdr http.Header) http.Header {
   newHeaders := http.Header{}
   for k, v := range(hdr) {
     newVal := make([]string, len(v))
-    for i := range(v) {
-      newVal[i] = v[i]
-    }
+    copy(newVal, v)
     newHeaders[k] = newVal
   }
   return newHeaders

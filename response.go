@@ -9,6 +9,7 @@ import (
 
 type response struct {
   id uint32
+  handler Handler
   cmds chan command
   bodies chan []byte
   resp *http.Response
@@ -19,9 +20,10 @@ type response struct {
   readStarted bool
 }
 
-func newResponse(id uint32) *response {
+func newResponse(id uint32, h Handler) *response {
   r := response{
     id: id,
+    handler: h,
     cmds: make(chan command, commandQueueSize),
     bodies: make(chan []byte, bodyQueueSize),
   }
@@ -81,7 +83,7 @@ func (r *response) startResponse(status uint32, rawHeaders string) {
   }
   r.origBody = resp.Body
 
-  mainHandler.HandleResponse(resp)
+  r.handler.HandleResponse(resp)
 
   if !r.readStarted {
     r.flushHeaders()

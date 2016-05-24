@@ -4,15 +4,9 @@ import (
   "bytes"
   "fmt"
   "strconv"
-  "time"
   "net/http"
   . "github.com/onsi/ginkgo"
   . "github.com/onsi/gomega"
-)
-
-const (
-  maxPolls = 20
-  pollDelay = 100 * time.Millisecond
 )
 
 var _ = Describe("Go Management Interface", func() {
@@ -20,9 +14,9 @@ var _ = Describe("Go Management Interface", func() {
   var rid uint32
 
   BeforeEach(func() {
-    id = CreateRequest()
+    id = CreateRequest(testHandler)
     Expect(id).ShouldNot(BeZero())
-    rid = CreateResponse()
+    rid = CreateResponse(testHandler)
     Expect(rid).ShouldNot(BeZero())
   })
 

@@ -1,21 +1,21 @@
 package main
 
 import (
-  "bytes"
-  "fmt"
-  "time"
-  "io/ioutil"
-  "net/http"
-  "net/url"
+	"bytes"
+	"fmt"
+	"io/ioutil"
+	"net/http"
+	"net/url"
+	"time"
 )
 
-var mainHandler RequestHandler
+var mainHandler HandlerFactory
 
 /*
  * Set the function that will handle all incoming HTTP requests.
  */
-func SetRequestHandler(h RequestHandler) {
-  mainHandler = h
+func SetRequestHandler(h HandlerFactory) {
+	mainHandler = h
 }
 
 /*
@@ -23,7 +23,15 @@ func SetRequestHandler(h RequestHandler) {
  * use for testing.
  */
 func SetTestRequestHandler() {
-  SetRequestHandler(&testRequestHandler{});
+	SetRequestHandler(&testHandlerFactory{})
+}
+
+type testHandlerFactory struct {
+}
+
+func (f *testHandlerFactory) Create(id string) Handler {
+	h := testRequestHandler{}
+	return &h
 }
 
 /*
@@ -36,119 +44,122 @@ type testRequestHandler struct {
 var lastTestBody []byte
 
 func (h *testRequestHandler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
-  switch req.URL.Path {
-  case "/pass":
-    // Nothing to do
+	switch req.URL.Path {
+	case "/pass":
+		// Nothing to do
 
-  case "/slowpass":
-    time.Sleep(time.Second)
+	case "/slowpass":
+		time.Sleep(time.Second)
 
-  case "/readbody":
-    buf, err := ioutil.ReadAll(req.Body)
-    if err != nil {
-      fmt.Printf("Error reading body: %v\n", err)
-    }
-    lastTestBody = buf
-    req.Body.Close()
+	case "/readbody":
+		buf, err := ioutil.ReadAll(req.Body)
+		if err != nil {
+			fmt.Printf("Error reading body: %v\n", err)
+		}
+		lastTestBody = buf
+		req.Body.Close()
 
-  case "/readbodyslow":
-    tmp := make([]byte, 2)
-    buf := &bytes.Buffer{}
-    len, _ := req.Body.Read(tmp)
-    for len > 0 {
-      buf.Write(tmp[0:len])
-      len, _ = req.Body.Read(tmp)
-    }
-    lastTestBody = buf.Bytes()
-    req.Body.Close()
+	case "/readbodyslow":
+		tmp := make([]byte, 2)
+		buf := &bytes.Buffer{}
+		len, _ := req.Body.Read(tmp)
+		for len > 0 {
+			buf.Write(tmp[0:len])
+			len, _ = req.Body.Read(tmp)
+		}
+		lastTestBody = buf.Bytes()
+		req.Body.Close()
 
-  case "/readanddiscard":
-    tmp := make([]byte, 2)
-    req.Body.Read(tmp)
-    req.Body.Close()
+	case "/readanddiscard":
+		tmp := make([]byte, 2)
+		req.Body.Read(tmp)
+		req.Body.Close()
 
-  case "/replacebody":
-    req.Body = ioutil.NopCloser(bytes.NewReader([]byte("Hello! I am the server!")))
+	case "/replacebody":
+		req.Body = ioutil.NopCloser(bytes.NewReader([]byte("Hello! I am the server!")))
 
-  case "/writeheaders":
-    req.Header.Add("Server", "Go Test Stuff")
-    req.Header.Add("X-Apigee-Test", "HeaderTest")
+	case "/writeheaders":
+		req.Header.Add("Server", "Go Test Stuff")
+		req.Header.Add("X-Apigee-Test", "HeaderTest")
 
-  case "/writepath":
-    newURL, _ := url.Parse("/newpath")
-    req.URL = newURL
+	case "/writepath":
+		newURL, _ := url.Parse("/newpath")
+		req.URL = newURL
 
-  case "/return201":
-    resp.WriteHeader(http.StatusCreated)
+	case "/return201":
+		resp.WriteHeader(http.StatusCreated)
 
-  case "/returnheaders":
-    resp.Header().Add("X-Apigee-Test", "Return Header Test")
-    resp.WriteHeader(http.StatusOK)
+	case "/returnheaders":
+		resp.Header().Add("X-Apigee-Test", "Return Header Test")
+		resp.WriteHeader(http.StatusOK)
 
-  case "/returnbody":
-    resp.Write([]byte("Hello! I am the server!"))
+	case "/returnbody":
+		resp.Write([]byte("Hello! I am the server!"))
 
-  case "/completerequest":
-    newURL, _ := url.Parse("/totallynewurl")
-    req.URL = newURL
-    req.Header.Add("X-Apigee-Test", "Complete")
-    // TODO would like reader to return in two chunks
-    req.Body = ioutil.NopCloser(
-      bytes.NewReader([]byte("Hello Again! Time for a complete rewrite!")))
-    //ctx.ProxyRequest().Write([]byte("Hello Again! "))
-    //ctx.ProxyRequest().Write([]byte("Time for a complete rewrite!"))
+	case "/completerequest":
+		newURL, _ := url.Parse("/totallynewurl")
+		req.URL = newURL
+		req.Header.Add("X-Apigee-Test", "Complete")
+		// TODO would like reader to return in two chunks
+		req.Body = ioutil.NopCloser(
+			bytes.NewReader([]byte("Hello Again! Time for a complete rewrite!")))
+		//ctx.ProxyRequest().Write([]byte("Hello Again! "))
+		//ctx.ProxyRequest().Write([]byte("Time for a complete rewrite!"))
 
-  case "/completeresponse":
-    ioutil.ReadAll(req.Body)
-    req.Body.Close()
-    resp.Header().Add("X-Apigee-Test", "Complete")
-    resp.WriteHeader(http.StatusCreated)
-    resp.Write([]byte("Hello Again! "))
-    resp.Write([]byte("Time for a complete rewrite!"))
+	case "/completeresponse":
+		ioutil.ReadAll(req.Body)
+		req.Body.Close()
+		resp.Header().Add("X-Apigee-Test", "Complete")
+		resp.WriteHeader(http.StatusCreated)
+		resp.Write([]byte("Hello Again! "))
+		resp.Write([]byte("Time for a complete rewrite!"))
 
-  case "/writeresponseheaders":
+	case "/writeresponseheaders":
 
-  case "/transformbody":
+	case "/transformbody":
 
-  case "/donttransformbody":
+	case "/donttransformbody":
 
-  case "/transformbodychunks":
+	case "/transformbodychunks":
 
-  case "/responseerror":
+	case "/responseerror":
 
-  default:
-    resp.WriteHeader(http.StatusNotFound)
-  }
+	default:
+		resp.WriteHeader(http.StatusNotFound)
+	}
 }
 
 func (h *testRequestHandler) HandleResponse(resp *http.Response) {
-  switch resp.Request.URL.Path {
-    case "/writeresponseheaders":
-      resp.Header.Set("X-Apigee-ResponseHeader", "yes")
+	switch resp.Request.URL.Path {
+	case "/writeresponseheaders":
+		resp.Header.Set("X-Apigee-ResponseHeader", "yes")
 
-    case "/transformbody":
-      resp.Body = ioutil.NopCloser(
-        bytes.NewReader([]byte("We have transformed the response!")))
+	case "/transformbody":
+		resp.Body = ioutil.NopCloser(
+			bytes.NewReader([]byte("We have transformed the response!")))
 
-    case "/responseerror":
-      resp.StatusCode = http.StatusInternalServerError
-      resp.Body = ioutil.NopCloser(
-        bytes.NewReader([]byte("Error in the server!")))
+	case "/responseerror":
+		resp.StatusCode = http.StatusInternalServerError
+		resp.Body = ioutil.NopCloser(
+			bytes.NewReader([]byte("Error in the server!")))
 
-    case "/transformbodychunks":
-      resp.Header.Set("X-Apigee-Transformed", "yes")
-      defer resp.Body.Close()
+	case "/transformbodychunks":
+		resp.Header.Set("X-Apigee-Transformed", "yes")
+		defer resp.Body.Close()
 
-      buf := &bytes.Buffer{}
-      rb := make([]byte, 128)
-      len, _ := resp.Body.Read(rb)
-      for len > 0 {
-        s := fmt.Sprintf("{ %v }\n", rb[:len])
-        buf.WriteString(s)
-        len, _ = resp.Body.Read(rb)
-      }
-      resp.Body = ioutil.NopCloser(buf)
+		buf := &bytes.Buffer{}
+		rb := make([]byte, 128)
+		len, _ := resp.Body.Read(rb)
+		for len > 0 {
+			s := fmt.Sprintf("{ %v }\n", rb[:len])
+			buf.WriteString(s)
+			len, _ = resp.Body.Read(rb)
+		}
+		resp.Body = ioutil.NopCloser(buf)
 
-      resp.Header.Set("X-Apigee-Invisible", "yes")
-  }
+		resp.Header.Set("X-Apigee-Invisible", "yes")
+	}
+}
+
+func (h *testRequestHandler) Close() {
 }
