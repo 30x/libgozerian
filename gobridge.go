@@ -16,7 +16,13 @@ import "C"
  * use cases. It is responsible for creating instances of Handler objects.
  */
 type HandlerFactory interface {
-	Create(id string) Handler
+  /*
+	 * Create a new handler. The implementation is free to assign whatever
+	 * meaning it needs to to the url that is passed in. It is expected that
+	 * all requests bearing the handler ID passed as "id" to this method
+	 * will be handled by the Handler that this method returns.
+	 */
+	Create(id, configurationURL string) Handler
 }
 
 /*
@@ -26,8 +32,39 @@ type HandlerFactory interface {
  * must be able to handle concurrent requests.
  */
 type Handler interface {
+  /*
+	 * Process an HTTP request.
+	 *   Normally, We assume that the request will be passed along
+	 * to a target as a proxy. If the headers or URL of the request are changed,
+	 * then the modified headers or URL are passed along to the target. If the
+	 * "Body" propery of the request is replaced, then the new body is sent
+	 * to the target instead of the original request body.
+	 *   The ResponseWriter may be used to send a response directly to the client.
+	 * It is assumed that when this object is used to generate a response by
+	 * calling "Write" or "WriteHeader" that the request is never forwarded
+	 * to the proxy, but instead the response set in ResponseWriter is sent
+	 * instead.
+	 */
 	ServeHTTP(w http.ResponseWriter, r *http.Request)
-	HandleResponse(r *http.Response)
+
+	/*
+	 * Process an HTTP proxy response.
+	 *   This method is called after the request was forwarded to a target
+	 * server. (If a response was generated in "ServeHTTP" using the ResponseWriter,
+	 * then this would never have happened.)
+	 *   If the headers or status code of the Response object are changed, then the
+	 * new values are returned to the client. If the "Body" property of the Response
+	 * object is changed, then the contents of the new Body are sent to the
+	 * client instead of what was received by the proxy. Finally, if the
+	 * ResponseWriter is used to generate a response, then the response will
+	 * replace whatever has been received by the proxy.
+	 */
+	HandleResponse(w http.ResponseWriter, r *http.Response)
+
+	/*
+	 * If the handler allocated any resources when it was created by the HandlerFactory,
+	 * then deallocate them here.
+	 */
 	Close()
 }
 
@@ -57,8 +94,8 @@ var chunkLock = sync.Mutex{}
  * resources for handling requests later.
  */
 //export GoCreateHandler
-func GoCreateHandler(handlerID *C.char) {
-	CreateHandler(C.GoString(handlerID))
+func GoCreateHandler(handlerID, configURI *C.char) {
+	CreateHandler(C.GoString(handlerID), C.GoString(configURI))
 }
 
 /*

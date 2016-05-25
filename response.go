@@ -38,6 +38,13 @@ func (r *response) Bodies() chan []byte {
   return r.bodies
 }
 
+func (r *response) Headers() http.Header {
+  return r.resp.Header
+}
+
+func (r *response) ResponseWritten() {
+}
+
 func (r *response) StartRead() {
   // In this model, once body is read, we can no longer change headers or status.
   // This limitation may be specific to nginx -- if so then we will make it
@@ -83,7 +90,11 @@ func (r *response) startResponse(status uint32, rawHeaders string) {
   }
   r.origBody = resp.Body
 
-  r.handler.HandleResponse(resp)
+  rresp := &httpResponse{
+    handler: r,
+  }
+
+  r.handler.HandleResponse(rresp, resp)
 
   if !r.readStarted {
     r.flushHeaders()

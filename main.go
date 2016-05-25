@@ -60,7 +60,7 @@ func StartWeaverServer(port int, proxyTarget string, testHandler bool) (*Server,
     SetTestRequestHandler()
   }
 
-  CreateHandler(defaultHandlerID)
+  CreateHandler(defaultHandlerID, "")
 
   return &svr, nil
 }
@@ -233,7 +233,7 @@ func (m *weaverHandler) processResponse(
       resp.WriteHeader(http.StatusInternalServerError)
       resp.Write([]byte(msg))
       return
-    case "WSTA":
+    case "WSTA", "SWCH":
       responseCode, _ = strconv.Atoi(msg)
     case "WHDR":
       parseHeaders(resp.Header(), msg)

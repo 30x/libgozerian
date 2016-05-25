@@ -29,7 +29,7 @@ func SetTestRequestHandler() {
 type testHandlerFactory struct {
 }
 
-func (f *testHandlerFactory) Create(id string) Handler {
+func (f *testHandlerFactory) Create(id, uri string) Handler {
 	h := testRequestHandler{}
 	return &h
 }
@@ -115,21 +115,17 @@ func (h *testRequestHandler) ServeHTTP(resp http.ResponseWriter, req *http.Reque
 		resp.Write([]byte("Time for a complete rewrite!"))
 
 	case "/writeresponseheaders":
-
 	case "/transformbody":
-
-	case "/donttransformbody":
-
 	case "/transformbodychunks":
-
 	case "/responseerror":
+	case "/responseerror2":
 
 	default:
 		resp.WriteHeader(http.StatusNotFound)
 	}
 }
 
-func (h *testRequestHandler) HandleResponse(resp *http.Response) {
+func (h *testRequestHandler) HandleResponse(w http.ResponseWriter, resp *http.Response) {
 	switch resp.Request.URL.Path {
 	case "/writeresponseheaders":
 		resp.Header.Set("X-Apigee-ResponseHeader", "yes")
@@ -142,6 +138,11 @@ func (h *testRequestHandler) HandleResponse(resp *http.Response) {
 		resp.StatusCode = http.StatusInternalServerError
 		resp.Body = ioutil.NopCloser(
 			bytes.NewReader([]byte("Error in the server!")))
+
+	case "/responseerror2":
+		w.Header().Set("X-Apigee-Response", "error")
+		w.WriteHeader(http.StatusGatewayTimeout)
+		w.Write([]byte("Response Error"))
 
 	case "/transformbodychunks":
 		resp.Header.Set("X-Apigee-Transformed", "yes")

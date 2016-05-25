@@ -60,6 +60,14 @@ func (r *request) Bodies() chan []byte {
   return r.bodies
 }
 
+func (r *request) Headers() http.Header {
+  return r.req.Header
+}
+
+func (r *request) ResponseWritten() {
+  r.proxying = false
+}
+
 func (r *request) StartRead() {
 }
 
@@ -96,8 +104,7 @@ func (r *request) startRequest(rawHeaders string) {
   r.req = req
 
   resp := &httpResponse{
-    req: r,
-    httpReq: req,
+    handler: r,
   }
   r.resp = resp
 

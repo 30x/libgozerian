@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"sync"
+  "net/http"
 )
 
 /*
@@ -27,14 +28,16 @@ var lastID uint32
 type commandHandler interface {
 	Commands() chan command
 	Bodies() chan []byte
+  Headers() http.Header
+  ResponseWritten()
 	StartRead()
 }
 
 /*
  * Create a new handler. It will be necessary in order to send a request.
  */
-func CreateHandler(id string) Handler {
-	h := mainHandler.Create(id)
+func CreateHandler(id, configURI string) Handler {
+	h := mainHandler.Create(id, configURI)
 	managerLatch.Lock()
 	handlers[id] = h
 	managerLatch.Unlock()

@@ -23,7 +23,7 @@ var testURL string
 
 var _ = BeforeSuite(func() {
   SetTestRequestHandler()
-  CreateHandler(testHandler)
+  CreateHandler(testHandler, "")
 
   testURL = os.Getenv("WEAVER_TEST_URL")
 

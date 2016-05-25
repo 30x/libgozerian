@@ -12,8 +12,7 @@ import (
  */
 
 type httpResponse struct {
-  req *request
-  httpReq *http.Request
+  handler commandHandler
   headers *http.Header
   headersFlushed bool
 }
@@ -22,7 +21,7 @@ func (h *httpResponse) Header() http.Header {
   // Copy on write the headers the first time
   if h.headers == nil {
     // Copy headers from the original request, because they will change.
-    newHeaders := copyHeaders(h.httpReq.Header)
+    newHeaders := copyHeaders(h.handler.Headers())
     h.headers = &newHeaders
   }
   return *(h.headers)
@@ -34,14 +33,14 @@ func (h *httpResponse) Header() http.Header {
  */
 func (h *httpResponse) Write(buf []byte) (int, error) {
   // Flush ensures that headers are written only once and the first time
-  h.req.proxying = false
+  h.handler.ResponseWritten()
   h.flush(http.StatusOK)
-  sendBodyChunk(h.req, buf)
+  sendBodyChunk(h.handler, buf)
   return len(buf), nil
 }
 
 func (h *httpResponse) WriteHeader(status int) {
-  h.req.proxying = false
+  h.handler.ResponseWritten()
   h.flush(status)
 }
 
@@ -53,14 +52,14 @@ func (h* httpResponse) flush(status int) {
     id: SWCH,
     msg: fmt.Sprintf("%d", status),
   }
-  h.req.cmds <- swchCmd
+  h.handler.Commands() <- swchCmd
 
   if h.headers != nil {
     whdrCmd := command{
       id: WHDR,
       msg: serializeHeaders(*h.headers),
     }
-    h.req.cmds <- whdrCmd
+    h.handler.Commands() <- whdrCmd
   }
 
   h.headersFlushed = true

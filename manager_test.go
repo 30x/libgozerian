@@ -413,6 +413,37 @@ var _ = Describe("Go Management Interface", func() {
     Expect(cmd).Should(Equal("DONE"))
   })
 
+  It("Modify Response Using Writer", func() {
+    err := BeginRequest(id, makeRequestHeaders("GET", "/responseerror2", "", 0))
+    Expect(err).Should(Succeed())
+
+    cmd := PollRequest(id, true)
+    Expect(cmd).Should(Equal("DONE"))
+
+    err = BeginResponse(rid, id, 200, makeResponseHeaders("", 0))
+    Expect(err).Should(Succeed())
+
+    cmd = PollResponse(rid, true)
+    Expect(cmd).Should(MatchRegexp("^SWCH.+"))
+    Expect(cmd[4:]).Should(Equal("504"))
+
+    cmd = PollResponse(rid, true)
+    Expect(cmd).Should(MatchRegexp("^WHDR.+"))
+    hdrs := http.Header{}
+    parseHeaders(hdrs, cmd[4:])
+    Expect(hdrs.Get("X-Apigee-Response")).Should(Equal("error"))
+
+    cmd = PollResponse(rid, true)
+    Expect(cmd).Should(MatchRegexp("^WBOD.*"))
+    body := readBodyData(cmd)
+
+    expectedBod := []byte("Response Error")
+    Expect(bytes.Equal(expectedBod, body)).Should(BeTrue())
+
+    cmd = PollResponse(rid, true)
+    Expect(cmd).Should(Equal("DONE"))
+  })
+
   It("Transform Body Chunks", func() {
     err := BeginRequest(id, makeRequestHeaders("GET", "/transformbodychunks", "", 0))
     Expect(err).Should(Succeed())

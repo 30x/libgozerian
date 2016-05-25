@@ -185,6 +185,20 @@ var _ = Describe("Remote HTTP Tests", func() {
     Expect(bytes.Equal(expectedBody, body)).Should(BeTrue())
   })
 
+  It("Write response status GET 2", func() {
+    resp, err := http.Get(fmt.Sprintf("%s/responseerror2", testURL))
+    Expect(err).Should(Succeed())
+    defer resp.Body.Close()
+    Expect(resp.StatusCode).Should(Equal(http.StatusGatewayTimeout))
+    Expect(resp.Header.Get("X-Apigee-Response")).Should(Equal("error"))
+
+    body, err := ioutil.ReadAll(resp.Body)
+    Expect(err).Should(Succeed())
+    expectedBody := []byte("Response Error")
+    fmt.Fprintf(GinkgoWriter, "Transformed body: %s\n", string(body))
+    Expect(bytes.Equal(expectedBody, body)).Should(BeTrue())
+  })
+
   It("Transform response body POST", func() {
     reqBody := []byte("Hello, World!")
     bodyBuf := bytes.NewBuffer(reqBody)
