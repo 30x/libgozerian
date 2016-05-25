@@ -1,0 +1,7 @@
+package: github.com/30x/weaver
+import:
+- package: github.com/30x/gozerian
+  subpackages:
+  - /ext_gateway
+  - handlers
+  - pipeline
