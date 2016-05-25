@@ -44,7 +44,10 @@ type Server struct {
  * If "testHandler" is true, install a test handler for unit test purposes.
  * If "port" is 0, then listen on an ephemeral port.
  */
-func StartWeaverServer(port int, proxyTarget string, testHandler bool) (*Server, error) {
+func StartWeaverServer(port int, proxyTarget, handlerURL string) (*Server, error) {
+  err := CreateHandler(defaultHandlerID, handlerURL)
+  if err != nil { return nil, err }
+
   addr := net.TCPAddr{
     Port: port,
   }
@@ -55,12 +58,6 @@ func StartWeaverServer(port int, proxyTarget string, testHandler bool) (*Server,
     listener: listener,
     target: proxyTarget,
   }
-
-  if testHandler {
-    SetTestRequestHandler()
-  }
-
-  CreateHandler(defaultHandlerID, "")
 
   return &svr, nil
 }
@@ -290,10 +287,12 @@ func main() {
   var port int
   var target string
   var testHandler bool
+  var handlerURI string
 
   flag.IntVar(&port, "p", 0, "(required) Port to listen on")
-  flag.StringVar(&target, "t", "", "(optional) Target proxy URL")
-  flag.BoolVar(&testHandler, "h", false, "(optional) Install a set of test handlers")
+  flag.StringVar(&target, "u", "", "(optional) Target proxy URL")
+  flag.StringVar(&handlerURI, "h", "", "(optional) URL of handler to create")
+  flag.BoolVar(&testHandler, "t", false, "(optional) Install a set of test handlers")
   flag.Parse()
 
   if !flag.Parsed() {
@@ -301,7 +300,11 @@ func main() {
     os.Exit(2)
   }
 
-  server, err := StartWeaverServer(port, target, testHandler)
+  if testHandler {
+    handlerURI = TestHandlerURI
+  }
+
+  server, err := StartWeaverServer(port, target, handlerURI)
   if err != nil {
     fmt.Printf("Cannot start server: %s\n", err)
     os.Exit(3)

@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"sync"
+	"net/url"
   "net/http"
 )
 
@@ -36,12 +37,22 @@ type commandHandler interface {
 /*
  * Create a new handler. It will be necessary in order to send a request.
  */
-func CreateHandler(id, configURI string) Handler {
-	h := mainHandler.Create(id, configURI)
+func CreateHandler(id, cfgURI string) error {
+	configURI, err := url.Parse(cfgURI)
+	if err != nil { return err }
+
+	var h Handler
+	if configURI.Scheme == URNScheme && configURI.Opaque == TestHandlerURIName {
+		h = createTestHandler()
+	} else {
+		// TODO call gozerian.CreateHandler(id, URI)
+		return fmt.Errorf("Error creating handler for %s", cfgURI)
+	}
+
 	managerLatch.Lock()
 	handlers[id] = h
 	managerLatch.Unlock()
-	return h
+	return nil
 }
 
 /*

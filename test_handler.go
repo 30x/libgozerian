@@ -9,35 +9,14 @@ import (
 	"time"
 )
 
-var mainHandler HandlerFactory
-
-/*
- * Set the function that will handle all incoming HTTP requests.
- */
-func SetRequestHandler(h HandlerFactory) {
-	mainHandler = h
-}
-
-/*
- * Install a request handler that supports a canonical API that we can
- * use for testing.
- */
-func SetTestRequestHandler() {
-	SetRequestHandler(&testHandlerFactory{})
-}
-
-type testHandlerFactory struct {
-}
-
-func (f *testHandlerFactory) Create(id, uri string) Handler {
-	h := testRequestHandler{}
-	return &h
-}
-
 /*
  * This is a built-in request handler that may be installed for testing.
  */
 type testRequestHandler struct {
+}
+
+func createTestHandler() Handler {
+	return &testRequestHandler{}
 }
 
 // help us a bit by saving test results for internal comparison

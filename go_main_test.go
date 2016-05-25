@@ -22,14 +22,13 @@ var testHTTPServer *Server
 var testURL string
 
 var _ = BeforeSuite(func() {
-  SetTestRequestHandler()
-  CreateHandler(testHandler, "")
+  CreateHandler(testHandler, TestHandlerURI)
 
   testURL = os.Getenv("WEAVER_TEST_URL")
 
   if testURL == "" {
     var err error
-    testHTTPServer, err = StartWeaverServer(0, "", true)
+    testHTTPServer, err = StartWeaverServer(0, "", TestHandlerURI)
     Expect(err).Should(Succeed())
     testHTTPServer.SetDebug(testDebug)
     testPort := testHTTPServer.GetPort()

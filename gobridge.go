@@ -11,19 +11,12 @@ import (
 */
 import "C"
 
-/*
- * The handler factory is responsible for creating separate handlers for different
- * use cases. It is responsible for creating instances of Handler objects.
- */
-type HandlerFactory interface {
-  /*
-	 * Create a new handler. The implementation is free to assign whatever
-	 * meaning it needs to to the url that is passed in. It is expected that
-	 * all requests bearing the handler ID passed as "id" to this method
-	 * will be handled by the Handler that this method returns.
-	 */
-	Create(id, configurationURL string) Handler
-}
+const (
+	URNScheme = "urn"
+	/* A handler with this URL will always result in a built-in handler for testing. */
+	TestHandlerURIName = "weaver-proxy:unit-test"
+	TestHandlerURI = "urn:" + TestHandlerURIName
+)
 
 /*
  * The handler object handles requests on behalf of a particular configuration,
@@ -282,15 +275,6 @@ func GoPollResponse(id uint32, block int32) *C.char {
 func GoSendResponseBodyChunk(id uint32, l int32, data unsafe.Pointer, len uint32) {
 	buf, last := copyPointer(l, data, len)
 	SendResponseBodyChunk(id, last, buf)
-}
-
-/*
- * This is a convenience function used to install a test handler that responds
- * to a particular set of API calls.
- */
-//export GoInstallTestHandler
-func GoInstallTestHandler() {
-	SetTestRequestHandler()
 }
 
 func copyPointer(l int32, data unsafe.Pointer, len uint32) ([]byte, bool) {
