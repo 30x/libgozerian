@@ -4,7 +4,8 @@ import (
 	"fmt"
 	"sync"
 	"net/url"
-  "net/http"
+	"net/http"
+	"github.com/30x/gozerian/c_gateway"
 )
 
 /*
@@ -29,8 +30,8 @@ var lastID uint32
 type commandHandler interface {
 	Commands() chan command
 	Bodies() chan []byte
-  Headers() http.Header
-  ResponseWritten()
+	Headers() http.Header
+	ResponseWritten()
 	StartRead()
 }
 
@@ -39,7 +40,9 @@ type commandHandler interface {
  */
 func CreateHandler(id, cfgURI string) error {
 	configURI, err := url.Parse(cfgURI)
-	if err != nil { return err }
+	if err != nil {
+		return err
+	}
 
 	var h *Handler
 	if configURI.Scheme == URNScheme && configURI.Opaque == TestHandlerURIName {
@@ -47,8 +50,13 @@ func CreateHandler(id, cfgURI string) error {
   } else if configURI.Scheme == URNScheme && configURI.Opaque == BadHandlerURIName {
 		return fmt.Errorf("Invalid handler from %s", cfgURI)
 	} else {
-		// TODO call gozerian.CreateHandler(id, URI)
-		return fmt.Errorf("Error creating handler for %s", cfgURI)
+		pipeline := c_gateway.CreatePipeline(id, configURI)
+
+		h = &Handler{
+			RequestHandler: pipeline.RequestHandlerFunc(),
+			ResponseHandler: pipeline.ResponseHandlerFunc(),
+		}
+
 	}
 
 	managerLatch.Lock()
