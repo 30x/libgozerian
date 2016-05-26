@@ -19,7 +19,7 @@ import (
 
 var requests = make(map[uint32]*request)
 var responses = make(map[uint32]*response)
-var handlers = make(map[string]Handler)
+var handlers = make(map[string]*Handler)
 var managerLatch = &sync.Mutex{}
 var lastID uint32
 
@@ -41,7 +41,7 @@ func CreateHandler(id, cfgURI string) error {
 	configURI, err := url.Parse(cfgURI)
 	if err != nil { return err }
 
-	var h Handler
+	var h *Handler
 	if configURI.Scheme == URNScheme && configURI.Opaque == TestHandlerURIName {
 		h = createTestHandler()
 	} else {
@@ -60,13 +60,8 @@ func CreateHandler(id, cfgURI string) error {
  */
 func DestroyHandler(id string) {
 	managerLatch.Lock()
-	defer managerLatch.Unlock()
-
-	h := handlers[id]
-	if h != nil {
-		h.Close()
-		delete(handlers, id)
-	}
+	delete(handlers, id)
+	managerLatch.Unlock()
 }
 
 /*

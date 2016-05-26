@@ -9,20 +9,17 @@ import (
 	"time"
 )
 
-/*
- * This is a built-in request handler that may be installed for testing.
- */
-type testRequestHandler struct {
-}
-
-func createTestHandler() Handler {
-	return &testRequestHandler{}
+func createTestHandler() *Handler {
+	return &Handler{
+		RequestHandler: testHandleRequest,
+		ResponseHandler: testHandleResponse,
+	}
 }
 
 // help us a bit by saving test results for internal comparison
 var lastTestBody []byte
 
-func (h *testRequestHandler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
+func testHandleRequest(resp http.ResponseWriter, req *http.Request) {
 	switch req.URL.Path {
 	case "/pass":
 		// Nothing to do
@@ -104,8 +101,8 @@ func (h *testRequestHandler) ServeHTTP(resp http.ResponseWriter, req *http.Reque
 	}
 }
 
-func (h *testRequestHandler) HandleResponse(w http.ResponseWriter, resp *http.Response) {
-	switch resp.Request.URL.Path {
+func testHandleResponse(w http.ResponseWriter, req *http.Request, resp *http.Response) {
+	switch req.URL.Path {
 	case "/writeresponseheaders":
 		resp.Header.Set("X-Apigee-ResponseHeader", "yes")
 
@@ -139,7 +136,4 @@ func (h *testRequestHandler) HandleResponse(w http.ResponseWriter, resp *http.Re
 
 		resp.Header.Set("X-Apigee-Invisible", "yes")
 	}
-}
-
-func (h *testRequestHandler) Close() {
 }

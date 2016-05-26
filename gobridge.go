@@ -24,7 +24,7 @@ const (
  * handler implementation by the HandlerFactory. Instances of this interface
  * must be able to handle concurrent requests.
  */
-type Handler interface {
+type Handler struct {
   /*
 	 * Process an HTTP request.
 	 *   Normally, We assume that the request will be passed along
@@ -38,7 +38,7 @@ type Handler interface {
 	 * to the proxy, but instead the response set in ResponseWriter is sent
 	 * instead.
 	 */
-	ServeHTTP(w http.ResponseWriter, r *http.Request)
+	RequestHandler http.HandlerFunc
 
 	/*
 	 * Process an HTTP proxy response.
@@ -52,13 +52,7 @@ type Handler interface {
 	 * ResponseWriter is used to generate a response, then the response will
 	 * replace whatever has been received by the proxy.
 	 */
-	HandleResponse(w http.ResponseWriter, r *http.Response)
-
-	/*
-	 * If the handler allocated any resources when it was created by the HandlerFactory,
-	 * then deallocate them here.
-	 */
-	Close()
+	ResponseHandler func(w http.ResponseWriter, r *http.Request, res *http.Response)
 }
 
 /*

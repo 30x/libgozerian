@@ -1,14 +1,4 @@
 hash: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
-updated: 2016-05-25T14:40:28.395419648-07:00
-imports:
-- name: github.com/30x/gozerian
-  version: 475d6ac4659ed6273fac7bd7134e40cae61e8a8b
-  subpackages:
-  - /ext_gateway
-  - handlers
-  - pipeline
-- name: github.com/gorilla/websocket
-  version: 1f512fc3f05332ba7117626cdfb4e07474e58e60
-- name: github.com/justinas/alice.git
-  version: 052b8b6c18edb9db317af86806d8e00ebaa94160
+updated: 2016-05-25T17:14:01.165829558-07:00
+imports: []
 devImports: []
