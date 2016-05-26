@@ -476,6 +476,15 @@ var _ = Describe("Go Management Interface", func() {
     cmd = PollResponse(rid, true)
     Expect(cmd).Should(Equal("DONE"))
   })
+
+  It("Bad handler", func() {
+    err := CreateHandler("bad", BadHandlerURI)
+    Expect(err).ShouldNot(Succeed())
+    id := CreateRequest("bad")
+    Expect(id).Should(BeZero())
+    id = CreateResponse("bad")
+    Expect(id).Should(BeZero())
+  })
 })
 
 func makeRequestHeaders(method, uri, contentType string, bodyLen int) string {

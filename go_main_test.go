@@ -22,12 +22,12 @@ var testHTTPServer *Server
 var testURL string
 
 var _ = BeforeSuite(func() {
-  CreateHandler(testHandler, TestHandlerURI)
+  err := CreateHandler(testHandler, TestHandlerURI)
+  Expect(err).Should(Succeed())
 
   testURL = os.Getenv("WEAVER_TEST_URL")
 
   if testURL == "" {
-    var err error
     testHTTPServer, err = StartWeaverServer(0, "", TestHandlerURI)
     Expect(err).Should(Succeed())
     testHTTPServer.SetDebug(testDebug)

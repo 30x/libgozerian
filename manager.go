@@ -44,6 +44,8 @@ func CreateHandler(id, cfgURI string) error {
 	var h *Handler
 	if configURI.Scheme == URNScheme && configURI.Opaque == TestHandlerURIName {
 		h = createTestHandler()
+  } else if configURI.Scheme == URNScheme && configURI.Opaque == BadHandlerURIName {
+		return fmt.Errorf("Invalid handler from %s", cfgURI)
 	} else {
 		// TODO call gozerian.CreateHandler(id, URI)
 		return fmt.Errorf("Error creating handler for %s", cfgURI)
@@ -71,6 +73,10 @@ func CreateRequest(handlerID string) uint32 {
 	managerLatch.Lock()
 	defer managerLatch.Unlock()
 
+	handler := handlers[handlerID]
+	if handler == nil {
+		return 0
+	}
 	// After 2BB requests we will roll over. That should not be a problem.
 	lastID++
 	id := lastID
@@ -86,6 +92,10 @@ func CreateResponse(handlerID string) uint32 {
 	managerLatch.Lock()
 	defer managerLatch.Unlock()
 
+	handler := handlers[handlerID]
+	if handler == nil {
+		return 0
+	}
 	lastID++
 	id := lastID
 	r := newResponse(id, handlers[handlerID])

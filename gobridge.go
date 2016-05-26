@@ -13,9 +13,13 @@ import "C"
 
 const (
 	URNScheme = "urn"
+	URNPrefix = URNScheme + ":"
 	/* A handler with this URL will always result in a built-in handler for testing. */
 	TestHandlerURIName = "weaver-proxy:unit-test"
-	TestHandlerURI = "urn:" + TestHandlerURIName
+	TestHandlerURI = URNPrefix + TestHandlerURIName
+	/* A handler with this URL is always considered invalid so that we can test that bit. */
+	BadHandlerURIName = "weaver-proxy:always-bad"
+	BadHandlerURI = URNPrefix + BadHandlerURIName
 )
 
 /*
@@ -78,11 +82,17 @@ var chunkLock = sync.Mutex{}
 
 /*
  * Create a new handler. This tells the GO implementation to set up some
- * resources for handling requests later.
+ * resources for handling requests later. If there was an error creating
+ * the handler, then return a string indicating the cause. Otherwise,
+ * return NULL. If a string is returned, the caller must free it using "free".
  */
 //export GoCreateHandler
-func GoCreateHandler(handlerID, configURI *C.char) {
-	CreateHandler(C.GoString(handlerID), C.GoString(configURI))
+func GoCreateHandler(handlerID, configURI *C.char) *C.char {
+	err := CreateHandler(C.GoString(handlerID), C.GoString(configURI))
+	if err == nil {
+		return nil
+	}
+	return C.CString(err.Error())
 }
 
 /*
