@@ -1,80 +1,84 @@
 package main
 
 import (
-  "bytes"
-  "fmt"
-  "regexp"
-  "strconv"
-  "strings"
-  "net/http"
-  "net/url"
+	"bytes"
+	"fmt"
+	"net/http"
+	"net/url"
+	"regexp"
+	"strconv"
+	"strings"
 )
 
 const (
-  // HTTP grammar regexps borrowed from Trireme source
-  Ctl =         "\\x00-\\x1f\\x7f"
-  Digits =      "[0-9]"
-  LWS =         "[ \\t]"
-  NotCtl =      "[^" + Ctl + "]"
-  Separator =   "\\(\\)<>@,;:\"/\\[\\]?+{} \t\\\\"
-  // Huh? Texts =       "[[ \t][^" + Ctl + "]]"
-  Texts =       "[^" + Ctl + "]"
-  Tokens =      "[^" + Separator + Ctl + "]"
+	// HTTP grammar regexps borrowed from Trireme source
+	Ctl       = "\\x00-\\x1f\\x7f"
+	Digits    = "[0-9]"
+	LWS       = "[ \\t]"
+	NotCtl    = "[^" + Ctl + "]"
+	Separator = "\\(\\)<>@,;:\"/\\[\\]?+{} \t\\\\"
+	// Huh? Texts =       "[[ \t][^" + Ctl + "]]"
+	Texts  = "[^" + Ctl + "]"
+	Tokens = "[^" + Separator + Ctl + "]"
 
-  HeaderLine =    "^(" + Tokens + "+):" + LWS + "*(" + NotCtl + "*)" + LWS + "*$"
-  RequestLine =   "^(" + Tokens + "+) (" + Texts + "+) HTTP/(" + Digits + ").(" + Digits + ")" + LWS + "*$"
+	HeaderLine  = "^(" + Tokens + "+):" + LWS + "*(" + NotCtl + "*)" + LWS + "*$"
+	RequestLine = "^(" + Tokens + "+) (" + Texts + "+) HTTP/(" + Digits + ").(" + Digits + ")" + LWS + "*$"
 )
 
 var requestLineRe = regexp.MustCompile(RequestLine)
 var headerLineRe = regexp.MustCompile(HeaderLine)
 
 func parseHTTPHeaders(rawHeaders string, hasRequestLine bool) (*http.Request, error) {
-  req := http.Request{
-    Header: make(map[string][]string),
-  }
+	req := http.Request{
+		Header: make(map[string][]string),
+	}
 
-  lines := strings.Split(rawHeaders, "\r\n")
+	lines := strings.Split(rawHeaders, "\r\n")
 
-  for i, line := range(lines) {
-    if hasRequestLine && (i == 0) {
-      err := parseRequestLine(line, &req)
-      if err != nil { return nil, err }
-    } else {
-      err := parseHeaderLine(line, &req)
-      if err != nil { return nil, err }
-    }
-  }
+	for i, line := range lines {
+		if hasRequestLine && (i == 0) {
+			err := parseRequestLine(line, &req)
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			err := parseHeaderLine(line, &req)
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
 
-  return &req, nil
+	return &req, nil
 }
 
 func parseHTTPResponse(status uint32, rawHeaders string) (*http.Response, error) {
-  resp := http.Response{
-    Header: make(map[string][]string),
-    StatusCode: int(status),
-    Status: http.StatusText(int(status)),
-    // Faking this for now
-    Proto: "HTTP/1.1",
-    ProtoMajor: 1,
-    ProtoMinor: 1,
-  }
+	resp := http.Response{
+		Header:     make(map[string][]string),
+		StatusCode: int(status),
+		Status:     http.StatusText(int(status)),
+		// Faking this for now
+		Proto:      "HTTP/1.1",
+		ProtoMajor: 1,
+		ProtoMinor: 1,
+	}
 
-  parseHeaders(resp.Header, rawHeaders)
+	parseHeaders(resp.Header, rawHeaders)
 
-  clHeader := resp.Header.Get("Content-Length")
-  if clHeader != "" {
-    cl, err := strconv.ParseInt(clHeader, 10, 64)
-    if err != nil {
-      resp.ContentLength = cl
-    }
-  }
+	clHeader := resp.Header.Get("Content-Length")
+	if clHeader != "" {
+		cl, err := strconv.ParseInt(clHeader, 10, 64)
+		if err != nil {
+			resp.ContentLength = cl
+		}
+	}
 
-  closeHeader := resp.Header.Get("Connection")
-  if closeHeader == "close" {
-    resp.Close = true
-  }
+	closeHeader := resp.Header.Get("Connection")
+	if closeHeader == "close" {
+		resp.Close = true
+	}
 
-  return &resp, nil
+	return &resp, nil
 }
 
 //serialize the headersMap back to a string
@@ -128,49 +132,57 @@ func parseHeaders(headerMap http.Header, rawHeaders string) {
 }
 
 func parseRequestLine(line string, req *http.Request) error {
-  matches := requestLineRe.FindStringSubmatch(line)
-  if matches == nil {
-    return fmt.Errorf("Invalid HTTP request line: \"%s\"", line)
-  }
+	matches := requestLineRe.FindStringSubmatch(line)
+	if matches == nil {
+		return fmt.Errorf("Invalid HTTP request line: \"%s\"", line)
+	}
 
-  url, err := url.ParseRequestURI(matches[2])
-  if err != nil { return err }
+	url, err := url.ParseRequestURI(matches[2])
+	if err != nil {
+		return err
+	}
 
-  major, err := strconv.Atoi(matches[3])
-  if err != nil { return err }
-  minor, err := strconv.Atoi(matches[4])
-  if err != nil { return err }
+	major, err := strconv.Atoi(matches[3])
+	if err != nil {
+		return err
+	}
+	minor, err := strconv.Atoi(matches[4])
+	if err != nil {
+		return err
+	}
 
-  req.URL = url
-  req.RequestURI = matches[2]
-  req.Method = matches[1]
-  req.ProtoMajor = major
-  req.ProtoMinor = minor
-  req.Proto = fmt.Sprintf("HTTP/%d.%d", major, minor)
-  return nil
+	req.URL = url
+	req.RequestURI = matches[2]
+	req.Method = matches[1]
+	req.ProtoMajor = major
+	req.ProtoMinor = minor
+	req.Proto = fmt.Sprintf("HTTP/%d.%d", major, minor)
+	return nil
 }
 
 func parseHeaderLine(line string, req *http.Request) error {
-  if "" == line {
-    return nil
-  }
-  matches := headerLineRe.FindStringSubmatch(line)
-  if matches == nil {
-    return fmt.Errorf("Invalid HTTP header line: \"%s\"", line)
-  }
+	if "" == line {
+		return nil
+	}
+	matches := headerLineRe.FindStringSubmatch(line)
+	if matches == nil {
+		return fmt.Errorf("Invalid HTTP header line: \"%s\"", line)
+	}
 
-  key := http.CanonicalHeaderKey(matches[1])
-  val := matches[2]
-  req.Header.Add(key, val)
+	key := http.CanonicalHeaderKey(matches[1])
+	val := matches[2]
+	req.Header.Add(key, val)
 
-  switch key {
-  case "Host":
-      req.Host = val
-  case "Content-Length":
-      len, err := strconv.ParseInt(val, 10, 64)
-      if err != nil { return err }
-      req.ContentLength = len
-  }
+	switch key {
+	case "Host":
+		req.Host = val
+	case "Content-Length":
+		len, err := strconv.ParseInt(val, 10, 64)
+		if err != nil {
+			return err
+		}
+		req.ContentLength = len
+	}
 
-  return nil
+	return nil
 }

@@ -2,10 +2,10 @@ package main
 
 import (
 	"fmt"
-	"sync"
-	"net/url"
-	"net/http"
 	"github.com/30x/gozerian/c_gateway"
+	"net/http"
+	"net/url"
+	"sync"
 )
 
 /*
@@ -47,14 +47,16 @@ func CreateHandler(id, cfgURI string) error {
 	var h *Handler
 	if configURI.Scheme == URNScheme && configURI.Opaque == TestHandlerURIName {
 		h = createTestHandler()
-  } else if configURI.Scheme == URNScheme && configURI.Opaque == BadHandlerURIName {
+	} else if configURI.Scheme == URNScheme && configURI.Opaque == BadHandlerURIName {
 		return fmt.Errorf("Invalid handler from %s", cfgURI)
 	} else {
 		pipeline, err := c_gateway.CreatePipeline(id, configURI)
-		if err != nil { return err }
+		if err != nil {
+			return err
+		}
 
 		h = &Handler{
-			RequestHandler: pipeline.RequestHandlerFunc(),
+			RequestHandler:  pipeline.RequestHandlerFunc(),
 			ResponseHandler: pipeline.ResponseHandlerFunc(),
 		}
 

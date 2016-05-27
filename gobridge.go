@@ -16,10 +16,10 @@ const (
 	URNPrefix = URNScheme + ":"
 	/* A handler with this URL will always result in a built-in handler for testing. */
 	TestHandlerURIName = "weaver-proxy:unit-test"
-	TestHandlerURI = URNPrefix + TestHandlerURIName
+	TestHandlerURI     = URNPrefix + TestHandlerURIName
 	/* A handler with this URL is always considered invalid so that we can test that bit. */
 	BadHandlerURIName = "weaver-proxy:always-bad"
-	BadHandlerURI = URNPrefix + BadHandlerURIName
+	BadHandlerURI     = URNPrefix + BadHandlerURIName
 )
 
 /*
@@ -29,7 +29,7 @@ const (
  * must be able to handle concurrent requests.
  */
 type Handler struct {
-  /*
+	/*
 	 * Process an HTTP request.
 	 *   Normally, We assume that the request will be passed along
 	 * to a target as a proxy. If the headers or URL of the request are changed,

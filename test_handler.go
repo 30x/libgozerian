@@ -11,7 +11,7 @@ import (
 
 func createTestHandler() *Handler {
 	return &Handler{
-		RequestHandler: testHandleRequest,
+		RequestHandler:  testHandleRequest,
 		ResponseHandler: testHandleResponse,
 	}
 }

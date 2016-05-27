@@ -8,36 +8,36 @@ package main
 type CommandID int
 
 const (
-  DONE CommandID = iota
-  ERRR
-  RBOD
-  WHDR
-  WURI
-  WSTA
-  SWCH
-  WBOD
-  BEND
+	DONE CommandID = iota
+	ERRR
+	RBOD
+	WHDR
+	WURI
+	WSTA
+	SWCH
+	WBOD
+	BEND
 )
 
 const (
-  CmdError = ERRR
-  CmdGetBody = RBOD
-  CmdDone = DONE
+	CmdError   = ERRR
+	CmdGetBody = RBOD
+	CmdDone    = DONE
 )
 
 type command struct {
-  id CommandID
-  msg string
+	id  CommandID
+	msg string
 }
 
 func createErrorCommand(err error) command {
-  return command{
-    id: CmdError,
-    msg: err.Error(),
-  }
+	return command{
+		id:  CmdError,
+		msg: err.Error(),
+	}
 }
 
 func (c command) String() string {
-  pfx := c.id.String()
-  return pfx + c.msg
+	pfx := c.id.String()
+	return pfx + c.msg
 }

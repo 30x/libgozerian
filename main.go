@@ -1,16 +1,16 @@
 package main
 
 import (
-  "bytes"
-  "flag"
-  "fmt"
-  "net"
-  "net/http"
-  "os"
-  "os/signal"
-  "strconv"
-  "syscall"
-  "unsafe"
+	"bytes"
+	"flag"
+	"fmt"
+	"net"
+	"net/http"
+	"os"
+	"os/signal"
+	"strconv"
+	"syscall"
+	"unsafe"
 )
 
 /*
@@ -19,7 +19,7 @@ import (
 import "C"
 
 const (
-  defaultHandlerID = "default"
+	defaultHandlerID = "default"
 )
 
 var defaultHandlerName = C.CString(defaultHandlerID)
@@ -33,9 +33,9 @@ var defaultHandlerName = C.CString(defaultHandlerID)
  */
 
 type Server struct {
-  listener *net.TCPListener
-  target string
-  debug bool
+	listener *net.TCPListener
+	target   string
+	debug    bool
 }
 
 /*
@@ -45,285 +45,295 @@ type Server struct {
  * If "port" is 0, then listen on an ephemeral port.
  */
 func StartWeaverServer(port int, proxyTarget, handlerURL string) (*Server, error) {
-  err := CreateHandler(defaultHandlerID, handlerURL)
-  if err != nil { return nil, err }
+	err := CreateHandler(defaultHandlerID, handlerURL)
+	if err != nil {
+		return nil, err
+	}
 
-  addr := net.TCPAddr{
-    Port: port,
-  }
-  listener, err := net.ListenTCP("tcp", &addr)
-  if err != nil { return nil, err }
+	addr := net.TCPAddr{
+		Port: port,
+	}
+	listener, err := net.ListenTCP("tcp", &addr)
+	if err != nil {
+		return nil, err
+	}
 
-  svr := Server{
-    listener: listener,
-    target: proxyTarget,
-  }
+	svr := Server{
+		listener: listener,
+		target:   proxyTarget,
+	}
 
-  return &svr, nil
+	return &svr, nil
 }
 
 func (s *Server) Run() {
-  handler := weaverHandler{
-    target: s.target,
-    debug: s.debug,
-  }
-  http.Serve(s.listener, &handler)
+	handler := weaverHandler{
+		target: s.target,
+		debug:  s.debug,
+	}
+	http.Serve(s.listener, &handler)
 }
 
 func (s *Server) Stop() {
-  s.listener.Close()
+	s.listener.Close()
 }
 
 func (s *Server) SetDebug(d bool) {
-  s.debug = d
+	s.debug = d
 }
 
 func (s *Server) GetPort() int {
-  _, port, err := net.SplitHostPort(s.listener.Addr().String())
-  if err != nil { return 0 }
-  portNum, err := strconv.Atoi(port)
-  if err != nil { return 0 }
-  return portNum
+	_, port, err := net.SplitHostPort(s.listener.Addr().String())
+	if err != nil {
+		return 0
+	}
+	portNum, err := strconv.Atoi(port)
+	if err != nil {
+		return 0
+	}
+	return portNum
 }
 
 type weaverHandler struct {
-  target string
-  debug bool
+	target string
+	debug  bool
 }
 
 func (m *weaverHandler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
-  defer req.Body.Close()
+	defer req.Body.Close()
 
-  // Although we have nice Go ways to call all these internal functions,
-  // use the public C API so that we can get good test coverage.
-  id := GoCreateRequest(defaultHandlerName)
-  defer GoFreeRequest(id)
-  rid := GoCreateResponse(defaultHandlerName)
-  defer GoFreeResponse(rid)
+	// Although we have nice Go ways to call all these internal functions,
+	// use the public C API so that we can get good test coverage.
+	id := GoCreateRequest(defaultHandlerName)
+	defer GoFreeRequest(id)
+	rid := GoCreateResponse(defaultHandlerName)
+	defer GoFreeResponse(rid)
 
-  requestBody := &bytes.Buffer{}
-  done := m.processRequest(resp, req, id, rid, requestBody)
-  if !done {
-    m.processResponse(resp, req, id, rid, requestBody)
-  }
+	requestBody := &bytes.Buffer{}
+	done := m.processRequest(resp, req, id, rid, requestBody)
+	if !done {
+		m.processResponse(resp, req, id, rid, requestBody)
+	}
 }
 
 func (m *weaverHandler) processRequest(
-  resp http.ResponseWriter, req *http.Request,
-  id, rid uint32, requestBody *bytes.Buffer) bool {
+	resp http.ResponseWriter, req *http.Request,
+	id, rid uint32, requestBody *bytes.Buffer) bool {
 
-  reqHdrs := &bytes.Buffer{}
-  fmt.Fprintf(reqHdrs, "%s %s HTTP/1.1\r\n", req.Method, req.URL.Path)
-  req.Header.Write(reqHdrs)
+	reqHdrs := &bytes.Buffer{}
+	fmt.Fprintf(reqHdrs, "%s %s HTTP/1.1\r\n", req.Method, req.URL.Path)
+	req.Header.Write(reqHdrs)
 
-  cReqHdrs := C.CString(reqHdrs.String())
-  defer C.free(unsafe.Pointer(cReqHdrs))
-  GoBeginRequest(id, cReqHdrs)
+	cReqHdrs := C.CString(reqHdrs.String())
+	defer C.free(unsafe.Pointer(cReqHdrs))
+	GoBeginRequest(id, cReqHdrs)
 
-  var cmd string
-  proxying := true
-  writingRequest := false
-  responseCode := http.StatusOK
-  proxyHeaders := req.Header
-  //proxyPath := req.URL.Path
-  sentHeaders := false
+	var cmd string
+	proxying := true
+	writingRequest := false
+	responseCode := http.StatusOK
+	proxyHeaders := req.Header
+	//proxyPath := req.URL.Path
+	sentHeaders := false
 
-  for cmd != "DONE" && cmd != "ERRR" {
-    rawCmd := GoPollRequest(id, 1)
-    cmdBuf := C.GoString(rawCmd)
-    C.free(unsafe.Pointer(rawCmd))
-    cmd = cmdBuf[:4]
-    msg := cmdBuf[4:]
+	for cmd != "DONE" && cmd != "ERRR" {
+		rawCmd := GoPollRequest(id, 1)
+		cmdBuf := C.GoString(rawCmd)
+		C.free(unsafe.Pointer(rawCmd))
+		cmd = cmdBuf[:4]
+		msg := cmdBuf[4:]
 
-    if m.debug {
-      fmt.Printf("Command: \"%s\"\n", cmd)
-    }
+		if m.debug {
+			fmt.Printf("Command: \"%s\"\n", cmd)
+		}
 
-    switch cmd {
-    case "ERRR":
-      resp.WriteHeader(http.StatusInternalServerError)
-      resp.Write([]byte(msg))
-      return true
-    case "RBOD":
-      requestBody.ReadFrom(req.Body)
-      ptr, len := sliceToPtr(requestBody.Bytes())
-      GoSendRequestBodyChunk(id, 1, ptr, len)
-      C.free(ptr)
-    case "WHDR":
-      if proxying {
-        parseHeaders(proxyHeaders, msg)
-      } else {
-        parseHeaders(resp.Header(), msg)
-      }
-    case "WURI":
-      //proxyPath = msg
-    case "WBOD":
-      chunk := getChunkData(msg)
-      if proxying {
-        if !writingRequest {
-          requestBody.Reset()
-          writingRequest = true
-        }
-        requestBody.Write(chunk)
-      } else {
-        if !sentHeaders {
-          resp.WriteHeader(responseCode)
-          sentHeaders = true
-        }
-        resp.Write(chunk)
-      }
-    case "SWCH":
-      proxying = false
-      responseCode, _ = strconv.Atoi(msg)
-    case "DONE":
-    default:
-      sendHTTPError(fmt.Errorf("Unexpected command %s", cmd), resp)
-      return true
-    }
-  }
+		switch cmd {
+		case "ERRR":
+			resp.WriteHeader(http.StatusInternalServerError)
+			resp.Write([]byte(msg))
+			return true
+		case "RBOD":
+			requestBody.ReadFrom(req.Body)
+			ptr, len := sliceToPtr(requestBody.Bytes())
+			GoSendRequestBodyChunk(id, 1, ptr, len)
+			C.free(ptr)
+		case "WHDR":
+			if proxying {
+				parseHeaders(proxyHeaders, msg)
+			} else {
+				parseHeaders(resp.Header(), msg)
+			}
+		case "WURI":
+			//proxyPath = msg
+		case "WBOD":
+			chunk := getChunkData(msg)
+			if proxying {
+				if !writingRequest {
+					requestBody.Reset()
+					writingRequest = true
+				}
+				requestBody.Write(chunk)
+			} else {
+				if !sentHeaders {
+					resp.WriteHeader(responseCode)
+					sentHeaders = true
+				}
+				resp.Write(chunk)
+			}
+		case "SWCH":
+			proxying = false
+			responseCode, _ = strconv.Atoi(msg)
+		case "DONE":
+		default:
+			sendHTTPError(fmt.Errorf("Unexpected command %s", cmd), resp)
+			return true
+		}
+	}
 
-  if !proxying {
-    // Request path decided immediately to send a response
-    if !sentHeaders {
-      resp.WriteHeader(responseCode)
-    }
-    return true
-  }
+	if !proxying {
+		// Request path decided immediately to send a response
+		if !sentHeaders {
+			resp.WriteHeader(responseCode)
+		}
+		return true
+	}
 
-  if requestBody.Len() == 0 {
-    requestBody.ReadFrom(req.Body)
-  }
-  return false
+	if requestBody.Len() == 0 {
+		requestBody.ReadFrom(req.Body)
+	}
+	return false
 }
 
 func (m *weaverHandler) processResponse(
-  resp http.ResponseWriter, req *http.Request,
-  id, rid uint32, requestBody *bytes.Buffer) {
+	resp http.ResponseWriter, req *http.Request,
+	id, rid uint32, requestBody *bytes.Buffer) {
 
-  // TODO in target proxy mode, actually get target headers
-  respHdrs := &bytes.Buffer{}
-  respHdrs.WriteString("Server: Weaver Test Main\r\n")
+	// TODO in target proxy mode, actually get target headers
+	respHdrs := &bytes.Buffer{}
+	respHdrs.WriteString("Server: Weaver Test Main\r\n")
 
-  cRespHdrs := C.CString(respHdrs.String())
-  defer C.free(unsafe.Pointer(cRespHdrs))
+	cRespHdrs := C.CString(respHdrs.String())
+	defer C.free(unsafe.Pointer(cRespHdrs))
 
-  GoBeginResponse(rid, id, http.StatusOK, cRespHdrs)
+	GoBeginResponse(rid, id, http.StatusOK, cRespHdrs)
 
-  var cmd string
-  responseCode := http.StatusOK
-  sentHeaders := false
-  wroteBody := false
+	var cmd string
+	responseCode := http.StatusOK
+	sentHeaders := false
+	wroteBody := false
 
-  for cmd != "DONE" && cmd != "ERRR" {
-    rawCmd := GoPollResponse(rid, 1)
-    cmdBuf := C.GoString(rawCmd)
-    C.free(unsafe.Pointer(rawCmd))
-    cmd = cmdBuf[:4]
-    msg := cmdBuf[4:]
+	for cmd != "DONE" && cmd != "ERRR" {
+		rawCmd := GoPollResponse(rid, 1)
+		cmdBuf := C.GoString(rawCmd)
+		C.free(unsafe.Pointer(rawCmd))
+		cmd = cmdBuf[:4]
+		msg := cmdBuf[4:]
 
-    if m.debug {
-      fmt.Printf("Command: \"%s\"\n", cmd)
-    }
+		if m.debug {
+			fmt.Printf("Command: \"%s\"\n", cmd)
+		}
 
-    switch cmd {
-    case "ERRR":
-      resp.WriteHeader(http.StatusInternalServerError)
-      resp.Write([]byte(msg))
-      return
-    case "WSTA", "SWCH":
-      responseCode, _ = strconv.Atoi(msg)
-    case "WHDR":
-      parseHeaders(resp.Header(), msg)
-    case "RBOD":
-      ptr, len := sliceToPtr(requestBody.Bytes())
-      GoSendResponseBodyChunk(rid, 1, ptr, len)
-      C.free(ptr)
-    case "WBOD":
-      if !sentHeaders {
-        resp.WriteHeader(responseCode)
-        sentHeaders = true
-      }
-      chunk := getChunkData(msg)
-      wroteBody = true
-      resp.Write(chunk)
-    case "DONE":
-    default:
-      sendHTTPError(fmt.Errorf("Unexpected command %s", cmd), resp)
-    }
-  }
+		switch cmd {
+		case "ERRR":
+			resp.WriteHeader(http.StatusInternalServerError)
+			resp.Write([]byte(msg))
+			return
+		case "WSTA", "SWCH":
+			responseCode, _ = strconv.Atoi(msg)
+		case "WHDR":
+			parseHeaders(resp.Header(), msg)
+		case "RBOD":
+			ptr, len := sliceToPtr(requestBody.Bytes())
+			GoSendResponseBodyChunk(rid, 1, ptr, len)
+			C.free(ptr)
+		case "WBOD":
+			if !sentHeaders {
+				resp.WriteHeader(responseCode)
+				sentHeaders = true
+			}
+			chunk := getChunkData(msg)
+			wroteBody = true
+			resp.Write(chunk)
+		case "DONE":
+		default:
+			sendHTTPError(fmt.Errorf("Unexpected command %s", cmd), resp)
+		}
+	}
 
-  if m.target == "" {
-    // Pretend that we are a proxy for another server by echoing the request
-    if !sentHeaders {
-      resp.WriteHeader(http.StatusOK)
-    }
-    if !wroteBody {
-      requestBody.WriteTo(resp)
-    }
-  } else {
-    sendHTTPError(fmt.Errorf("Didn't implement proxying to target yet"), resp)
-  }
+	if m.target == "" {
+		// Pretend that we are a proxy for another server by echoing the request
+		if !sentHeaders {
+			resp.WriteHeader(http.StatusOK)
+		}
+		if !wroteBody {
+			requestBody.WriteTo(resp)
+		}
+	} else {
+		sendHTTPError(fmt.Errorf("Didn't implement proxying to target yet"), resp)
+	}
 }
 
 func getChunkData(rawID string) []byte {
-  id, err := strconv.ParseInt(rawID, 16, 32)
-  if err != nil { return nil }
-  ptr := GoGetChunk(int32(id))
-  len := GoGetChunkLength(int32(id))
-  buf := ptrToSlice(ptr, len)
-  GoReleaseChunk(int32(id))
-  C.free(ptr)
-  return buf
+	id, err := strconv.ParseInt(rawID, 16, 32)
+	if err != nil {
+		return nil
+	}
+	ptr := GoGetChunk(int32(id))
+	len := GoGetChunkLength(int32(id))
+	buf := ptrToSlice(ptr, len)
+	GoReleaseChunk(int32(id))
+	C.free(ptr)
+	return buf
 }
 
 func sendHTTPError(err error, resp http.ResponseWriter) {
-  fmt.Printf("Error: %s\n", err.Error())
-  resp.Header().Set("Content-Type", "text/plain")
-  resp.WriteHeader(http.StatusInternalServerError)
-  resp.Write([]byte(err.Error()))
+	fmt.Printf("Error: %s\n", err.Error())
+	resp.Header().Set("Content-Type", "text/plain")
+	resp.WriteHeader(http.StatusInternalServerError)
+	resp.Write([]byte(err.Error()))
 }
 
 func main() {
-  var port int
-  var target string
-  var testHandler bool
-  var handlerURI string
+	var port int
+	var target string
+	var testHandler bool
+	var handlerURI string
 
-  flag.IntVar(&port, "p", 0, "(required) Port to listen on")
-  flag.StringVar(&target, "u", "", "(optional) Target proxy URL")
-  flag.StringVar(&handlerURI, "h", "", "(optional) URL of handler to create")
-  flag.BoolVar(&testHandler, "t", false, "(optional) Install a set of test handlers")
-  flag.Parse()
+	flag.IntVar(&port, "p", 0, "(required) Port to listen on")
+	flag.StringVar(&target, "u", "", "(optional) Target proxy URL")
+	flag.StringVar(&handlerURI, "h", "", "(optional) URL of handler to create")
+	flag.BoolVar(&testHandler, "t", false, "(optional) Install a set of test handlers")
+	flag.Parse()
 
-  if !flag.Parsed() {
-    flag.PrintDefaults()
-    os.Exit(2)
-  }
+	if !flag.Parsed() {
+		flag.PrintDefaults()
+		os.Exit(2)
+	}
 
-  if testHandler {
-    handlerURI = TestHandlerURI
-  }
+	if testHandler {
+		handlerURI = TestHandlerURI
+	}
 
-  server, err := StartWeaverServer(port, target, handlerURI)
-  if err != nil {
-    fmt.Printf("Cannot start server: %s\n", err)
-    os.Exit(3)
-  }
+	server, err := StartWeaverServer(port, target, handlerURI)
+	if err != nil {
+		fmt.Printf("Cannot start server: %s\n", err)
+		os.Exit(3)
+	}
 
-  fmt.Printf("Listening on port %d\n", server.GetPort())
+	fmt.Printf("Listening on port %d\n", server.GetPort())
 
-  doneChan := make(chan bool, 1)
-  signalChan := make(chan os.Signal, 1)
-  signal.Notify(signalChan, syscall.SIGINT)
-  signal.Notify(signalChan, syscall.SIGTERM)
+	doneChan := make(chan bool, 1)
+	signalChan := make(chan os.Signal, 1)
+	signal.Notify(signalChan, syscall.SIGINT)
+	signal.Notify(signalChan, syscall.SIGTERM)
 
-  go func() {
-    <- signalChan
-    doneChan <- true
-  }()
+	go func() {
+		<-signalChan
+		doneChan <- true
+	}()
 
-  go server.Run()
+	go server.Run()
 
-  <- doneChan
-  server.Stop()
+	<-doneChan
+	server.Stop()
 }
