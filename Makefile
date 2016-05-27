@@ -1,8 +1,8 @@
 GOFILES = *.go
 
-all: libweaver.so
+all: libgozerian.so
 
-libweaver.so: $(GOFILES)
+libgozerian.so: $(GOFILES)
 	go build -buildmode=c-shared -o $@ 
 
 test:

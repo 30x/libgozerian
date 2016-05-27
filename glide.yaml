@@ -1,4 +1,4 @@
-package: github.com/30x/weaver
+package: github.com/30x/libgozerian
 import:
 - package: github.com/30x/gozerian
   subpackages:
