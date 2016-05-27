@@ -1,2 +1,5 @@
 package: github.com/30x/weaver
 import:
+- package: github.com/30x/gozerian
+  subpackages:
+  - /c_gateway

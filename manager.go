@@ -50,7 +50,8 @@ func CreateHandler(id, cfgURI string) error {
   } else if configURI.Scheme == URNScheme && configURI.Opaque == BadHandlerURIName {
 		return fmt.Errorf("Invalid handler from %s", cfgURI)
 	} else {
-		pipeline := c_gateway.CreatePipeline(id, configURI)
+		pipeline, err := c_gateway.CreatePipeline(id, configURI)
+		if err != nil { return err }
 
 		h = &Handler{
 			RequestHandler: pipeline.RequestHandlerFunc(),
