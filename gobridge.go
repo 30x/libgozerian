@@ -282,21 +282,12 @@ func GoSendResponseBodyChunk(id uint32, l int32, data unsafe.Pointer, len uint32
 }
 
 func copyPointer(l int32, data unsafe.Pointer, len uint32) ([]byte, bool) {
-	buf := ptrToSlice(data, len)
+	buf := C.GoBytes(data, C.int(len))
 	var last bool
 	if l != 0 {
 		last = true
 	}
 	return buf, last
-}
-
-func ptrToSlice(p unsafe.Pointer, len uint32) []byte {
-	var buf []byte
-	if p != nil && len > 0 {
-		buf = make([]byte, len)
-		copy(buf[:], (*[1 << 30]byte)(p)[:])
-	}
-	return buf
 }
 
 func sliceToPtr(buf []byte) (unsafe.Pointer, uint32) {

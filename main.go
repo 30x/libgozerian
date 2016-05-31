@@ -280,7 +280,7 @@ func getChunkData(rawID string) []byte {
 	}
 	ptr := GoGetChunk(int32(id))
 	len := GoGetChunkLength(int32(id))
-	buf := ptrToSlice(ptr, len)
+	buf := C.GoBytes(ptr, C.int(len))
 	GoReleaseChunk(int32(id))
 	C.free(ptr)
 	return buf

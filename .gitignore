@@ -3,3 +3,6 @@ libgozerian.h
 libgozerian.so
 libgozerian
 vendor
+ctests/ctests
+ctests/*.o
+*.dSYM
