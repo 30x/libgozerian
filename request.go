@@ -125,7 +125,7 @@ func (r *request) startRequest(rawHeaders string) {
 	}
 
 	// This signals that everything is done.
-	r.cmds <- command{id: CmdDone}
+	r.cmds <- command{id: DONE}
 }
 
 func readAndSend(handler commandHandler, body io.ReadCloser) {

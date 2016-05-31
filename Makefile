@@ -15,10 +15,10 @@ cover:
 	go test --coverprofile=cov.out
 	go tool cover --html=cov.out
 
-graph: states.png
+graph: states-request.png
 
-states.png: states.dot
-	dot -Tpng states.dot -ostates.png
+states-request.png: states-request.dot
+	dot $< -Tpng -o$@
 
 clean:
 	go clean

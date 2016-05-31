@@ -16,13 +16,6 @@ const (
 	WSTA
 	SWCH
 	WBOD
-	BEND
-)
-
-const (
-	CmdError   = ERRR
-	CmdGetBody = RBOD
-	CmdDone    = DONE
 )
 
 type command struct {
@@ -32,7 +25,7 @@ type command struct {
 
 func createErrorCommand(err error) command {
 	return command{
-		id:  CmdError,
+		id:  ERRR,
 		msg: err.Error(),
 	}
 }

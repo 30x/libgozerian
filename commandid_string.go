@@ -4,9 +4,9 @@ package main
 
 import "fmt"
 
-const _CommandID_name = "DONEERRRRBODWHDRWURIWSTASWCHWBODBEND"
+const _CommandID_name = "DONEERRRRBODWHDRWURIWSTASWCHWBOD"
 
-var _CommandID_index = [...]uint8{0, 4, 8, 12, 16, 20, 24, 28, 32, 36}
+var _CommandID_index = [...]uint8{0, 4, 8, 12, 16, 20, 24, 28, 32}
 
 func (i CommandID) String() string {
 	if i < 0 || i >= CommandID(len(_CommandID_index)-1) {

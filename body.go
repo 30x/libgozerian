@@ -19,7 +19,7 @@ func (b *requestBody) Read(buf []byte) (int, error) {
 	if !b.started {
 		b.handler.StartRead()
 		// First tell the caller that we need some data.
-		b.handler.Commands() <- command{id: CmdGetBody}
+		b.handler.Commands() <- command{id: RBOD}
 		b.started = true
 	}
 

@@ -1,0 +1,43 @@
+digraph G {
+  Start [shape = ellipse];
+  RBOD [shape = box];
+  WURI [shape = box];
+  WHDR [shape = box];
+  WBOD [shape = box];
+  SWCH [shape = box];
+  DONE [shape = ellipse];
+
+
+  Start -> DONE;
+  Start -> RBOD;
+  Start -> WBOD;
+  Start -> WHDR;
+  Start -> WURI;
+  Start -> SWCH;
+
+  RBOD -> DONE;
+  RBOD -> WBOD;
+  RBOD -> WHDR;
+  RBOD -> WURI;
+  RBOD -> SWCH;
+
+  WURI -> DONE;
+  WURI -> RBOD;
+  WURI -> WBOD;
+  WURI -> WHDR;
+  WURI -> SWCH;
+
+  WHDR -> DONE;
+  WHDR -> RBOD;
+  WHDR -> WBOD;
+  WHDR -> WURI;
+  WHDR -> SWCH;
+
+  SWCH -> DONE;
+  SWCH -> RBOD;
+  SWCH -> WBOD;
+  SWCH -> WHDR;
+
+  WBOD -> WBOD;
+  WBOD -> DONE;
+}

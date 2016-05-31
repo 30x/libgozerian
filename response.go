@@ -101,7 +101,7 @@ func (r *response) startResponse(status uint32, rawHeaders string) {
 	}
 	r.flushBody()
 
-	r.cmds <- command{id: CmdDone}
+	r.cmds <- command{id: DONE}
 }
 
 func (r *response) flushHeaders() {
