@@ -77,8 +77,103 @@ static void test_basic_request(void) {
   cleanRequest();
 }
 
+static void test_replace_request_body(void) {
+  initRequest();
+
+  createHeader("POST", "/replacebody", 100, "text/plain");
+  GoBeginRequest(id, hdrBuf);
+  char* cmd = GoPollRequest(id, 1);
+  CU_ASSERT_TRUE(strncmp("WBOD", cmd, 4) == 0);
+  unsigned int chunkID = strtoul(cmd + 4, NULL, 16);
+  free(cmd);
+  char* chunk = (char*)GoGetChunk(chunkID);
+  CU_ASSERT_PTR_NOT_NULL(chunk);
+  unsigned int chunkLen = GoGetChunkLength(chunkID);
+  CU_ASSERT_NOT_EQUAL(chunkLen, 0);
+  CU_ASSERT_TRUE(strncmp("Hello! I am the server!", chunk, chunkLen) == 0);
+  free(chunk);
+  GoReleaseChunk(chunkID);
+
+  cmd = GoPollRequest(id, 1);
+  CU_ASSERT_STRING_EQUAL(cmd, "DONE");
+  free(cmd);
+
+  cleanRequest();
+}
+
+static void test_replace_response_body(void) {
+  initRequest();
+  createHeader("GET", "/transformbody", 0, NULL);
+  GoBeginRequest(id, hdrBuf);
+  char* cmd = GoPollRequest(id, 1);
+  CU_ASSERT_STRING_EQUAL(cmd, "DONE");
+  free(cmd);
+
+  createResponse(10, "text/plain");
+  GoBeginResponse(rid, id, 200, hdrBuf);
+  cmd = GoPollResponse(rid, 1);
+  CU_ASSERT_TRUE(strncmp("WBOD", cmd, 4) == 0);
+  unsigned int chunkID = strtoul(cmd + 4, NULL, 16);
+  free(cmd);
+  char* chunk = (char*)GoGetChunk(chunkID);
+  CU_ASSERT_PTR_NOT_NULL(chunk);
+  unsigned int chunkLen = GoGetChunkLength(chunkID);
+  CU_ASSERT_NOT_EQUAL(chunkLen, 0);
+  CU_ASSERT_TRUE(strncmp("We have transformed the response!", chunk, chunkLen) == 0);
+  free(chunk);
+  GoReleaseChunk(chunkID);
+
+  cmd = GoPollResponse(rid, 1);
+  CU_ASSERT_STRING_EQUAL(cmd, "DONE");
+  free(cmd);
+
+  cleanRequest();
+}
+
+static void test_replace_response_body_chunks(void) {
+  initRequest();
+  createHeader("GET", "/transformbodychunks", 0, NULL);
+  GoBeginRequest(id, hdrBuf);
+  char* cmd = GoPollRequest(id, 1);
+  CU_ASSERT_STRING_EQUAL(cmd, "DONE");
+  free(cmd);
+
+  createResponse(10, "text/plain");
+  GoBeginResponse(rid, id, 200, hdrBuf);
+  cmd = GoPollResponse(rid, 1);
+  CU_ASSERT_TRUE(strncmp("WHDR", cmd, 4) == 0);
+  free(cmd);
+
+  cmd = GoPollResponse(rid, 1);
+  CU_ASSERT_STRING_EQUAL(cmd, "RBOD");
+  free(cmd);
+  char* bod = "Hello, Server!";
+  GoSendResponseBodyChunk(rid, 1, bod, strlen(bod));
+
+  cmd = GoPollResponse(rid, 1);
+  CU_ASSERT_TRUE(strncmp("WBOD", cmd, 4) == 0);
+  unsigned int chunkID = strtoul(cmd + 4, NULL, 16);
+  free(cmd);
+  char* chunk = (char*)GoGetChunk(chunkID);
+  CU_ASSERT_PTR_NOT_NULL(chunk);
+  unsigned int chunkLen = GoGetChunkLength(chunkID);
+  CU_ASSERT_NOT_EQUAL(chunkLen, 0);
+  CU_ASSERT_TRUE(strncmp("{Hello, Server!}", chunk, chunkLen) == 0);
+  free(chunk);
+  GoReleaseChunk(chunkID);
+
+  cmd = GoPollResponse(rid, 1);
+  CU_ASSERT_STRING_EQUAL(cmd, "DONE");
+  free(cmd);
+
+  cleanRequest();
+}
+
 int addMainTests(CU_pSuite s) {
   CU_ADD_TEST(s, test_bad_handler);
   CU_ADD_TEST(s, test_basic_request);
+  CU_ADD_TEST(s, test_replace_request_body);
+  CU_ADD_TEST(s, test_replace_response_body);
+  CU_ADD_TEST(s, test_replace_response_body_chunks);
   return 0;
 }

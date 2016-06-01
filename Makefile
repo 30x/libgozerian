@@ -1,12 +1,9 @@
 GOFILES = *.go
 
-all: libgozerian.so libgozerian.a
+all: libgozerian.so 
 
 libgozerian.so: $(GOFILES)
 	go build -buildmode=c-shared -o $@ 
-
-libgozerian.a: $(GOFILES)
-	go build -buildmode=c-archive -o $@ 
 
 test:
 	ginkgo --trace

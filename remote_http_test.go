@@ -212,6 +212,6 @@ var _ = Describe("Remote HTTP Tests", func() {
 		body, err := ioutil.ReadAll(resp.Body)
 		Expect(err).Should(Succeed())
 		fmt.Fprintf(GinkgoWriter, "Transformed body: %s\n", string(body))
-		Expect(body).Should(MatchRegexp("{ \\[.+\\] }"))
+		Expect(body).Should(BeEquivalentTo("{Hello, World!}"))
 	})
 })

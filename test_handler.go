@@ -128,8 +128,9 @@ func testHandleResponse(w http.ResponseWriter, req *http.Request, resp *http.Res
 		rb := make([]byte, 128)
 		len, _ := resp.Body.Read(rb)
 		for len > 0 {
-			s := fmt.Sprintf("{ %v }\n", rb[:len])
-			buf.WriteString(s)
+			buf.WriteString("{")
+			buf.Write(rb[:len])
+			buf.WriteString("}")
 			len, _ = resp.Body.Read(rb)
 		}
 		resp.Body = ioutil.NopCloser(buf)

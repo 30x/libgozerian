@@ -471,7 +471,7 @@ var _ = Describe("Go Management Interface", func() {
 		body := readBodyData(cmd)
 
 		fmt.Fprintf(GinkgoWriter, "Response body: %s", string(body))
-		Expect(string(body)).Should(MatchRegexp("{ \\[.+\\] }"))
+		Expect(string(body)).Should(Equal("{Hello, Response Server!}"))
 
 		cmd = PollResponse(rid, true)
 		Expect(cmd).Should(Equal("DONE"))
