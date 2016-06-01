@@ -20,7 +20,7 @@ import (
 
 var requests = make(map[uint32]*request)
 var responses = make(map[uint32]*response)
-var handlers = make(map[string]*Handler)
+var pipeDefs = make(map[string]PipeDefinition)
 var managerLatch = &sync.Mutex{}
 var lastID uint32
 
@@ -44,26 +44,21 @@ func CreateHandler(id, cfgURI string) error {
 		return err
 	}
 
-	var h *Handler
+	var pipeDef PipeDefinition
 	if configURI.Scheme == URNScheme && configURI.Opaque == TestHandlerURIName {
-		h = createTestHandler()
+		pipeDef = &TestPipeDef{}
 	} else if configURI.Scheme == URNScheme && configURI.Opaque == BadHandlerURIName {
 		return fmt.Errorf("Invalid handler from %s", cfgURI)
 	} else {
-		pipeline, err := c_gateway.CreatePipeline(id, configURI)
+		pipeDef, err := c_gateway.DefinePipe(configURI)
 		if err != nil {
 			return err
 		}
-
-		h = &Handler{
-			RequestHandler:  pipeline.RequestHandlerFunc(),
-			ResponseHandler: pipeline.ResponseHandlerFunc(),
-		}
-
+		pipeDef = pipeDef
 	}
 
 	managerLatch.Lock()
-	handlers[id] = h
+	pipeDefs[id] = pipeDef
 	managerLatch.Unlock()
 	return nil
 }
@@ -73,7 +68,7 @@ func CreateHandler(id, cfgURI string) error {
  */
 func DestroyHandler(id string) {
 	managerLatch.Lock()
-	delete(handlers, id)
+	delete(pipeDefs, id)
 	managerLatch.Unlock()
 }
 
@@ -84,14 +79,14 @@ func CreateRequest(handlerID string) uint32 {
 	managerLatch.Lock()
 	defer managerLatch.Unlock()
 
-	handler := handlers[handlerID]
+	handler := pipeDefs[handlerID]
 	if handler == nil {
 		return 0
 	}
 	// After 2BB requests we will roll over. That should not be a problem.
 	lastID++
 	id := lastID
-	req := newRequest(id, handlers[handlerID])
+	req := newRequest(id, pipeDefs[handlerID])
 	requests[id] = req
 	return id
 }
@@ -103,13 +98,13 @@ func CreateResponse(handlerID string) uint32 {
 	managerLatch.Lock()
 	defer managerLatch.Unlock()
 
-	handler := handlers[handlerID]
+	handler := pipeDefs[handlerID]
 	if handler == nil {
 		return 0
 	}
 	lastID++
 	id := lastID
-	r := newResponse(id, handlers[handlerID])
+	r := newResponse(id, pipeDefs[handlerID])
 	responses[id] = r
 	return id
 }

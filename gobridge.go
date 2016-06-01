@@ -22,6 +22,17 @@ const (
 	BadHandlerURI     = URNPrefix + BadHandlerURIName
 )
 
+type PipeDefinition interface {
+	CreatePipe(reqId string) Pipe
+}
+
+type Pipe interface {
+	RequestHandlerFunc() http.HandlerFunc
+	ResponseHandlerFunc() ResponseHandlerFunc
+}
+
+type ResponseHandlerFunc func(w http.ResponseWriter, r *http.Request, res *http.Response)
+
 /*
  * The handler object handles requests on behalf of a particular configuration,
  * represented by a handler ID. Instances of this interface are created by the
@@ -56,7 +67,7 @@ type Handler struct {
 	 * ResponseWriter is used to generate a response, then the response will
 	 * replace whatever has been received by the proxy.
 	 */
-	ResponseHandler func(w http.ResponseWriter, r *http.Request, res *http.Response)
+	ResponseHandler ResponseHandlerFunc
 }
 
 /*

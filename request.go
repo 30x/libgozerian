@@ -30,7 +30,7 @@ const (
 )
 
 type request struct {
-	handler      *Handler
+	pipeDef      PipeDefinition
 	req          *http.Request
 	resp         *httpResponse
 	origHeaders  http.Header
@@ -43,9 +43,9 @@ type request struct {
 	readerClosed bool
 }
 
-func newRequest(id uint32, h *Handler) *request {
+func newRequest(id uint32, pd PipeDefinition) *request {
 	r := request{
-		handler:  h,
+		pipeDef:  pd,
 		id:       id,
 		proxying: true,
 	}
@@ -115,7 +115,8 @@ func (r *request) startRequest(rawHeaders string) {
 
 	// Call handlers. They may write the request body or headers, or start
 	// to write out a response.
-	r.handler.RequestHandler(resp, req)
+	pipe := r.pipeDef.CreatePipe(string(r.id))
+	pipe.RequestHandlerFunc()(resp, req)
 
 	// It's possible that not everything was cleaned up here.
 	if r.proxying {

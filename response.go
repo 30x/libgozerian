@@ -9,7 +9,7 @@ import (
 
 type response struct {
 	id          uint32
-	handler     *Handler
+	pipeDef     PipeDefinition
 	cmds        chan command
 	bodies      chan []byte
 	resp        *http.Response
@@ -20,10 +20,10 @@ type response struct {
 	readStarted bool
 }
 
-func newResponse(id uint32, h *Handler) *response {
+func newResponse(id uint32, pd PipeDefinition) *response {
 	r := response{
 		id:      id,
-		handler: h,
+		pipeDef: pd,
 		cmds:    make(chan command, commandQueueSize),
 		bodies:  make(chan []byte, bodyQueueSize),
 	}
@@ -94,7 +94,8 @@ func (r *response) startResponse(status uint32, rawHeaders string) {
 		handler: r,
 	}
 
-	r.handler.ResponseHandler(rresp, r.req, resp)
+	pipe := r.pipeDef.CreatePipe(string(r.id))
+	pipe.ResponseHandlerFunc()(rresp, r.req, resp)
 
 	if !r.readStarted {
 		r.flushHeaders()

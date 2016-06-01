@@ -9,11 +9,17 @@ import (
 	"time"
 )
 
-func createTestHandler() *Handler {
-	return &Handler{
-		RequestHandler:  testHandleRequest,
-		ResponseHandler: testHandleResponse,
-	}
+type TestPipeDef struct {}
+func (self *TestPipeDef) CreatePipe(reqId string) Pipe {
+	return &TestPipe{}
+}
+
+type TestPipe struct {}
+func (self *TestPipe) RequestHandlerFunc() http.HandlerFunc {
+	return testHandleRequest
+}
+func (self *TestPipe) ResponseHandlerFunc() ResponseHandlerFunc {
+	return testHandleResponse
 }
 
 // help us a bit by saving test results for internal comparison
