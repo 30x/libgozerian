@@ -47,15 +47,15 @@ type commandHandler interface {
 /*
  * Initialize the library. Not necessary but useful in testing.
  */
-func Initialize() {
+func initializeOnce() {
 	oneInit.Do(initRand)
 }
 
 /*
  * Create a new handler. It will be necessary in order to send a request.
  */
-func CreateHandler(id, cfgURI string) error {
-	Initialize()
+func createHandler(id, cfgURI string) error {
+	initializeOnce()
 
 	configURI, err := url.Parse(cfgURI)
 	if err != nil {
@@ -84,7 +84,7 @@ func CreateHandler(id, cfgURI string) error {
 /*
  * Destroy an existing handler.
  */
-func DestroyHandler(id string) {
+func destroyHandler(id string) {
 	managerLatch.Lock()
 	delete(pipeDefs, id)
 	managerLatch.Unlock()
@@ -93,7 +93,7 @@ func DestroyHandler(id string) {
 /*
  * Create a new request object. It should be used once and only once.
  */
-func CreateRequest(handlerID string) uint32 {
+func createRequest(handlerID string) uint32 {
 	managerLatch.Lock()
 	defer managerLatch.Unlock()
 
@@ -112,7 +112,7 @@ func CreateRequest(handlerID string) uint32 {
 /*
  * Create a new response object. It should be used once and only once.
  */
-func CreateResponse(handlerID string) uint32 {
+func createResponse(handlerID string) uint32 {
 	managerLatch.Lock()
 	defer managerLatch.Unlock()
 
@@ -130,7 +130,7 @@ func CreateResponse(handlerID string) uint32 {
 /*
  * Begin the request by sending in a set of headers.
  */
-func BeginRequest(id uint32, rawHeaders string) error {
+func beginRequest(id uint32, rawHeaders string) error {
 	req := getRequest(id)
 	if req == nil {
 		return fmt.Errorf("Unknown request: %d", id)
@@ -139,7 +139,7 @@ func BeginRequest(id uint32, rawHeaders string) error {
 	return req.begin(rawHeaders)
 }
 
-func BeginResponse(responseID, requestID, status uint32, rawHeaders string) error {
+func beginResponse(responseID, requestID, status uint32, rawHeaders string) error {
 	r := getResponse(responseID)
 	if r == nil {
 		return fmt.Errorf("Unknown response: %d", responseID)
@@ -157,7 +157,7 @@ func BeginResponse(responseID, requestID, status uint32, rawHeaders string) erro
  * string that represents a command, or an empty string if there is none.
  * Commands are defined in commands.go.
  */
-func PollRequest(id uint32, block bool) string {
+func pollRequest(id uint32, block bool) string {
 	req := getRequest(id)
 	if req == nil {
 		return "ERRRUnknown request"
@@ -169,7 +169,7 @@ func PollRequest(id uint32, block bool) string {
 	return req.pollNB()
 }
 
-func PollResponse(id uint32, block bool) string {
+func pollResponse(id uint32, block bool) string {
 	resp := getResponse(id)
 	if resp == nil {
 		return "ERRRUnknown response"
@@ -184,13 +184,13 @@ func PollResponse(id uint32, block bool) string {
 /*
  * Free the slot for a request.
  */
-func FreeRequest(id uint32) {
+func freeRequest(id uint32) {
 	managerLatch.Lock()
 	delete(requests, id)
 	managerLatch.Unlock()
 }
 
-func FreeResponse(id uint32) {
+func freeResponse(id uint32) {
 	managerLatch.Lock()
 	delete(responses, id)
 	managerLatch.Unlock()
@@ -199,12 +199,12 @@ func FreeResponse(id uint32) {
 /*
  * Send some data to act as the request body.
  */
-func SendRequestBodyChunk(id uint32, last bool, chunk []byte) {
+func sendRequestBodyChunk(id uint32, last bool, chunk []byte) {
 	req := getRequest(id)
 	sendChunk(req, last, chunk)
 }
 
-func SendResponseBodyChunk(id uint32, last bool, chunk []byte) {
+func sendResponseBodyChunk(id uint32, last bool, chunk []byte) {
 	resp := getResponse(id)
 	sendChunk(resp, last, chunk)
 }

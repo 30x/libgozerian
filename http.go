@@ -12,21 +12,21 @@ import (
 
 const (
 	// HTTP grammar regexps borrowed from Trireme source
-	Ctl       = "\\x00-\\x1f\\x7f"
-	Digits    = "[0-9]"
-	LWS       = "[ \\t]"
-	NotCtl    = "[^" + Ctl + "]"
-	Separator = "\\(\\)<>@,;:\"/\\[\\]?+{} \t\\\\"
+	ctl       = "\\x00-\\x1f\\x7f"
+	digits    = "[0-9]"
+	lws       = "[ \\t]"
+	notCtl    = "[^" + ctl + "]"
+	separator = "\\(\\)<>@,;:\"/\\[\\]?+{} \t\\\\"
 	// Huh? Texts =       "[[ \t][^" + Ctl + "]]"
-	Texts  = "[^" + Ctl + "]"
-	Tokens = "[^" + Separator + Ctl + "]"
+	texts  = "[^" + ctl + "]"
+	tokens = "[^" + separator + ctl + "]"
 
-	HeaderLine  = "^(" + Tokens + "+):" + LWS + "*(" + NotCtl + "*)" + LWS + "*$"
-	RequestLine = "^(" + Tokens + "+) (" + Texts + "+) HTTP/(" + Digits + ").(" + Digits + ")" + LWS + "*$"
+	headerLine  = "^(" + tokens + "+):" + lws + "*(" + notCtl + "*)" + lws + "*$"
+	requestLine = "^(" + tokens + "+) (" + texts + "+) HTTP/(" + digits + ").(" + digits + ")" + lws + "*$"
 )
 
-var requestLineRe = regexp.MustCompile(RequestLine)
-var headerLineRe = regexp.MustCompile(HeaderLine)
+var requestLineRe = regexp.MustCompile(requestLine)
+var headerLineRe = regexp.MustCompile(headerLine)
 
 func parseHTTPHeaders(rawHeaders string, hasRequestLine bool) (*http.Request, error) {
 	req := http.Request{

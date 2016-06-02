@@ -32,7 +32,7 @@ var defaultHandlerName = C.CString(defaultHandlerID)
  * or it can act in proxy mode.
  */
 
-type Server struct {
+type gozerianServer struct {
 	listener *net.TCPListener
 	target   string
 	debug    bool
@@ -44,8 +44,8 @@ type Server struct {
  * If "testHandler" is true, install a test handler for unit test purposes.
  * If "port" is 0, then listen on an ephemeral port.
  */
-func StartWeaverServer(port int, proxyTarget, handlerURL string) (*Server, error) {
-	err := CreateHandler(defaultHandlerID, handlerURL)
+func startGozerianServer(port int, proxyTarget, handlerURL string) (*gozerianServer, error) {
+	err := createHandler(defaultHandlerID, handlerURL)
 	if err != nil {
 		return nil, err
 	}
@@ -58,7 +58,7 @@ func StartWeaverServer(port int, proxyTarget, handlerURL string) (*Server, error
 		return nil, err
 	}
 
-	svr := Server{
+	svr := gozerianServer{
 		listener: listener,
 		target:   proxyTarget,
 	}
@@ -66,7 +66,7 @@ func StartWeaverServer(port int, proxyTarget, handlerURL string) (*Server, error
 	return &svr, nil
 }
 
-func (s *Server) Run() {
+func (s *gozerianServer) run() {
 	handler := weaverHandler{
 		target: s.target,
 		debug:  s.debug,
@@ -74,15 +74,15 @@ func (s *Server) Run() {
 	http.Serve(s.listener, &handler)
 }
 
-func (s *Server) Stop() {
+func (s *gozerianServer) stop() {
 	s.listener.Close()
 }
 
-func (s *Server) SetDebug(d bool) {
+func (s *gozerianServer) setDebug(d bool) {
 	s.debug = d
 }
 
-func (s *Server) GetPort() int {
+func (s *gozerianServer) getPort() int {
 	_, port, err := net.SplitHostPort(s.listener.Addr().String())
 	if err != nil {
 		return 0
@@ -314,13 +314,13 @@ func main() {
 		handlerURI = TestHandlerURI
 	}
 
-	server, err := StartWeaverServer(port, target, handlerURI)
+	server, err := startGozerianServer(port, target, handlerURI)
 	if err != nil {
 		fmt.Printf("Cannot start server: %s\n", err)
 		os.Exit(3)
 	}
 
-	fmt.Printf("Listening on port %d\n", server.GetPort())
+	fmt.Printf("Listening on port %d\n", server.getPort())
 
 	doneChan := make(chan bool, 1)
 	signalChan := make(chan os.Signal, 1)
@@ -332,8 +332,8 @@ func main() {
 		doneChan <- true
 	}()
 
-	go server.Run()
+	go server.run()
 
 	<-doneChan
-	server.Stop()
+	server.stop()
 }

@@ -11,28 +11,37 @@ import (
 	"github.com/30x/gozerian/pipeline"
 )
 
+// TestPipeDef implements gozerian PipeDefinition interface.
 type TestPipeDef struct{}
 
+// CreatePipe creates a new pipeline.
 func (d *TestPipeDef) CreatePipe(reqID string) pipeline.Pipe {
 	return &TestPipe{
 		id: reqID,
 	}
 }
 
+// TestPipe is used as a sample pipeline.
 type TestPipe struct {
 	id string
 }
 
+// RequestHandlerFunc is the function that handles the request
 func (p *TestPipe) RequestHandlerFunc() http.HandlerFunc {
 	return func(resp http.ResponseWriter, req *http.Request) {
 		testHandleRequest(p.id, resp, req)
 	}
 }
+
+// ResponseHandlerFunc handles the response
 func (p *TestPipe) ResponseHandlerFunc() pipeline.ResponseHandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request, resp *http.Response) {
 		testHandleResponse(p.id, w, req, resp)
 	}
 }
+
+// Control is not implemented because it is not used by libgozerian, only by
+// gozerian itself, which does not invoke this particular handler.
 func (p *TestPipe) Control() pipeline.PipelineControl {
 	// For testing only; this will never be called.
 	return nil
