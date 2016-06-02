@@ -3,10 +3,11 @@ package main
 import (
 	"bytes"
 	"fmt"
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
 	"io/ioutil"
 	"net/http"
+
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
 )
 
 var _ = Describe("Remote HTTP Tests", func() {
@@ -115,6 +116,18 @@ var _ = Describe("Remote HTTP Tests", func() {
 		Expect(err).Should(Succeed())
 		expectedBody := []byte("Hello! I am the server!")
 		Expect(bytes.Equal(expectedBody, body)).Should(BeTrue())
+	})
+
+	It("Return MessageID GET", func() {
+		resp, err := http.Get(fmt.Sprintf("%s/replacewithid", testURL))
+		Expect(err).Should(Succeed())
+		defer resp.Body.Close()
+		Expect(resp.StatusCode).Should(Equal(200))
+		body, err := ioutil.ReadAll(resp.Body)
+		Expect(err).Should(Succeed())
+		msgID := string(body)
+		fmt.Fprintf(GinkgoWriter, "Message ID: \"%s\"\n", msgID)
+		Expect(resp.Header.Get("X-Apigee-MsgID")).Should(Equal(msgID))
 	})
 
 	It("Complete request POST", func() {

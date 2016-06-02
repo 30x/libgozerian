@@ -1,10 +1,16 @@
 package main
 
 import (
+	cryptoRand "crypto/rand"
 	"fmt"
+	"math"
+	"math/big"
+	"math/rand"
 	"net/http"
 	"net/url"
+	"strconv"
 	"sync"
+	"time"
 
 	"github.com/30x/gozerian/c_gateway"
 	"github.com/30x/gozerian/pipeline"
@@ -25,6 +31,7 @@ var responses = make(map[uint32]*response)
 var pipeDefs = make(map[string]pipeline.Definition)
 var managerLatch = &sync.Mutex{}
 var lastID uint32
+var oneInit sync.Once
 
 /*
  * Common interface for requests and responses
@@ -38,9 +45,18 @@ type commandHandler interface {
 }
 
 /*
+ * Initialize the library. Not necessary but useful in testing.
+ */
+func Initialize() {
+	oneInit.Do(initRand)
+}
+
+/*
  * Create a new handler. It will be necessary in order to send a request.
  */
 func CreateHandler(id, cfgURI string) error {
+	Initialize()
+
 	configURI, err := url.Parse(cfgURI)
 	if err != nil {
 		return err
@@ -81,14 +97,14 @@ func CreateRequest(handlerID string) uint32 {
 	managerLatch.Lock()
 	defer managerLatch.Unlock()
 
-	handler := pipeDefs[handlerID]
-	if handler == nil {
+	pd := pipeDefs[handlerID]
+	if pd == nil {
 		return 0
 	}
 	// After 2BB requests we will roll over. That should not be a problem.
 	lastID++
 	id := lastID
-	req := newRequest(id, pipeDefs[handlerID])
+	req := newRequest(id, pd)
 	requests[id] = req
 	return id
 }
@@ -191,6 +207,29 @@ func SendRequestBodyChunk(id uint32, last bool, chunk []byte) {
 func SendResponseBodyChunk(id uint32, last bool, chunk []byte) {
 	resp := getResponse(id)
 	sendChunk(resp, last, chunk)
+}
+
+/*
+ * One-time seeding of the global random-number generator so that we can
+ * quickly generate unique request IDs.
+ * Use the crypto random number generator to do a good job of initializing
+ * the faster one in the "math" package.
+ */
+func initRand() {
+	maxRand := big.NewInt(math.MaxInt64)
+	seed, err := cryptoRand.Int(cryptoRand.Reader, maxRand)
+	if err != nil {
+		panic(fmt.Sprintf("Error initializing random numbers: %s", err))
+	}
+	rand.Seed(seed.Int64())
+}
+
+func makeMessageID() string {
+	// Make timestamp into milliseconds since Unix epoch
+	ts := time.Now().UnixNano() / 1000000
+	// Make a random segment too
+	r := rand.Uint32()
+	return strconv.FormatInt(ts, 16) + "." + strconv.FormatUint(uint64(r), 16)
 }
 
 func sendChunk(h commandHandler, last bool, chunk []byte) {

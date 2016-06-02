@@ -3,10 +3,13 @@ package main
 import (
 	"bytes"
 	"fmt"
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
 	"net/http"
 	"strconv"
+	"strings"
+	"time"
+
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
 )
 
 var _ = Describe("Go Management Interface", func() {
@@ -484,6 +487,50 @@ var _ = Describe("Go Management Interface", func() {
 		Expect(id).Should(BeZero())
 		id = CreateResponse("bad")
 		Expect(id).Should(BeZero())
+	})
+})
+
+var _ = Describe("Unique ID test", func() {
+	It("ID format", func() {
+		// Unique ID format is "ttttt.rrrr" where "ttttt" is time in milliseconds since
+		// Unix Epoch.
+		id := makeMessageID()
+		fmt.Fprintf(GinkgoWriter, "Message ID: %s\n", id)
+		Expect(id).Should(MatchRegexp("[0-9a-f]+\\.[0-9a-f]+"))
+		sid := strings.Split(id, ".")
+		Expect(len(sid)).Should(Equal(2))
+		ts, err := strconv.ParseInt(sid[0], 16, 64)
+		Expect(err).Should(Succeed())
+		nt := time.Unix(ts/1000, ts%1000)
+		// Sanity check that the timestamp is reasonable
+		Expect(nt.Year()).Should(BeNumerically(">=", 2016))
+	})
+
+	It("Unique IDs", func() {
+		numChannels := 20
+		numIDs := 1000
+		totalIDs := numChannels * numIDs
+
+		allIDs := make(map[string]bool)
+		newIDs := make(chan string, 1000)
+
+		// Generate IDs in many goroutines to test parallel generation
+		for i := 0; i < numChannels; i++ {
+			go func() {
+				for c := 0; c < numIDs; c++ {
+					newIDs <- makeMessageID()
+				}
+			}()
+		}
+
+		// Receive new IDs and put them in a map
+		for i := 0; i < totalIDs; i++ {
+			id := <-newIDs
+			allIDs[id] = true
+		}
+
+		// If there were any duplicates, then the map will be too smal
+		Expect(len(allIDs)).Should(Equal(totalIDs))
 	})
 })
 

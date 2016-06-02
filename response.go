@@ -11,11 +11,10 @@ import (
 
 type response struct {
 	id          uint32
-	pipeDef     pipeline.Definition
 	cmds        chan command
 	bodies      chan []byte
 	resp        *http.Response
-	req         *http.Request
+	request     *request
 	origStatus  int
 	origHeaders http.Header
 	origBody    io.Reader
@@ -24,10 +23,9 @@ type response struct {
 
 func newResponse(id uint32, pd pipeline.Definition) *response {
 	r := response{
-		id:      id,
-		pipeDef: pd,
-		cmds:    make(chan command, commandQueueSize),
-		bodies:  make(chan []byte, bodyQueueSize),
+		id:     id,
+		cmds:   make(chan command, commandQueueSize),
+		bodies: make(chan []byte, bodyQueueSize),
 	}
 	return &r
 }
@@ -56,7 +54,7 @@ func (r *response) StartRead() {
 }
 
 func (r *response) begin(status uint32, rawHeaders string, req *request) error {
-	r.req = req.req
+	r.request = req
 	go r.startResponse(status, rawHeaders)
 	return nil
 }
@@ -82,7 +80,7 @@ func (r *response) startResponse(status uint32, rawHeaders string) {
 		return
 	}
 
-	resp.Request = r.req
+	resp.Request = r.request.req
 	r.resp = resp
 	r.origStatus = resp.StatusCode
 	r.origHeaders = copyHeaders(resp.Header)
@@ -96,8 +94,7 @@ func (r *response) startResponse(status uint32, rawHeaders string) {
 		handler: r,
 	}
 
-	pipe := r.pipeDef.CreatePipe(string(r.id))
-	pipe.ResponseHandlerFunc()(rresp, r.req, resp)
+	r.request.pipe.ResponseHandlerFunc()(rresp, resp.Request, resp)
 
 	if !r.readStarted {
 		r.flushHeaders()

@@ -14,16 +14,24 @@ import (
 type TestPipeDef struct{}
 
 func (d *TestPipeDef) CreatePipe(reqID string) pipeline.Pipe {
-	return &TestPipe{}
+	return &TestPipe{
+		id: reqID,
+	}
 }
 
-type TestPipe struct{}
+type TestPipe struct {
+	id string
+}
 
 func (p *TestPipe) RequestHandlerFunc() http.HandlerFunc {
-	return testHandleRequest
+	return func(resp http.ResponseWriter, req *http.Request) {
+		testHandleRequest(p.id, resp, req)
+	}
 }
 func (p *TestPipe) ResponseHandlerFunc() pipeline.ResponseHandlerFunc {
-	return testHandleResponse
+	return func(w http.ResponseWriter, req *http.Request, resp *http.Response) {
+		testHandleResponse(p.id, w, req, resp)
+	}
 }
 func (p *TestPipe) Control() pipeline.PipelineControl {
 	// For testing only; this will never be called.
@@ -33,7 +41,7 @@ func (p *TestPipe) Control() pipeline.PipelineControl {
 // help us a bit by saving test results for internal comparison
 var lastTestBody []byte
 
-func testHandleRequest(resp http.ResponseWriter, req *http.Request) {
+func testHandleRequest(msgID string, resp http.ResponseWriter, req *http.Request) {
 	switch req.URL.Path {
 	case "/pass":
 		// Nothing to do
@@ -66,7 +74,10 @@ func testHandleRequest(resp http.ResponseWriter, req *http.Request) {
 		req.Body.Close()
 
 	case "/replacebody":
-		req.Body = ioutil.NopCloser(bytes.NewReader([]byte("Hello! I am the server!")))
+		req.Body = ioutil.NopCloser(bytes.NewBufferString("Hello! I am the server!"))
+
+	case "/replacewithid":
+		req.Body = ioutil.NopCloser(bytes.NewBufferString(msgID))
 
 	case "/writeheaders":
 		req.Header.Add("Server", "Go Test Stuff")
@@ -115,8 +126,11 @@ func testHandleRequest(resp http.ResponseWriter, req *http.Request) {
 	}
 }
 
-func testHandleResponse(w http.ResponseWriter, req *http.Request, resp *http.Response) {
+func testHandleResponse(msgID string, w http.ResponseWriter, req *http.Request, resp *http.Response) {
 	switch req.URL.Path {
+	case "/replacewithid":
+		resp.Header.Set("X-Apigee-MsgID", msgID)
+
 	case "/writeresponseheaders":
 		resp.Header.Set("X-Apigee-ResponseHeader", "yes")
 
