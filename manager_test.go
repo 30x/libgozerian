@@ -529,7 +529,7 @@ var _ = Describe("Unique ID test", func() {
 			allIDs[id] = true
 		}
 
-		// If there were any duplicates, then the map will be too smal
+		// If there were any duplicates, then the map will be too small
 		Expect(len(allIDs)).Should(Equal(totalIDs))
 	})
 })

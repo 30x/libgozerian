@@ -212,19 +212,61 @@ var _ = Describe("Remote HTTP Tests", func() {
 	})
 
 	It("Transform response body POST", func() {
-		reqBody := []byte("Hello, World!")
-		bodyBuf := bytes.NewBuffer(reqBody)
-		resp, err :=
-			http.Post(fmt.Sprintf("%s/transformbodychunks", testURL),
-				"text/plain", bodyBuf)
+		err := testResponseTransformation()
 		Expect(err).Should(Succeed())
-		defer resp.Body.Close()
-		Expect(resp.StatusCode).Should(Equal(200))
-		Expect(resp.Header.Get("X-Apigee-Transformed")).Should(Equal("yes"))
+	})
 
-		body, err := ioutil.ReadAll(resp.Body)
-		Expect(err).Should(Succeed())
-		fmt.Fprintf(GinkgoWriter, "Transformed body: %s\n", string(body))
-		Expect(body).Should(BeEquivalentTo("{Hello, World!}"))
+	It("Transform response body in parallel", func() {
+		testParallelTransformation(2, 10)
+	})
+
+	It("Transform response body in more parallel", func() {
+		testParallelTransformation(100, 10)
 	})
 })
+
+func testResponseTransformation() error {
+	reqBody := []byte("Hello, World!")
+	bodyBuf := bytes.NewBuffer(reqBody)
+	resp, err :=
+		http.Post(fmt.Sprintf("%s/transformbodychunks", testURL),
+			"text/plain", bodyBuf)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		return fmt.Errorf("Invalid status code: %d", resp.StatusCode)
+	}
+	if resp.Header.Get("X-Apigee-Transformed") != "yes" {
+		return fmt.Errorf("X-Apigee-Transformed header not set")
+	}
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+	if string(body) != "{Hello, World!}" {
+		return fmt.Errorf("Body is invalid: \"%s\"", string(body))
+	}
+	return nil
+}
+
+func testParallelTransformation(concurrency, count int) {
+	doneCh := make(chan error, concurrency)
+
+	for c := 0; c < concurrency; c++ {
+		go func() {
+			var err error
+			for i := 0; err != nil && i < count; i++ {
+				err = testResponseTransformation()
+			}
+			doneCh <- err
+		}()
+	}
+
+	for c := 0; c < concurrency; c++ {
+		err := <-doneCh
+		Expect(err).Should(Succeed())
+	}
+}
