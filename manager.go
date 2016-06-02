@@ -2,10 +2,12 @@ package main
 
 import (
 	"fmt"
-	"github.com/30x/gozerian/c_gateway"
 	"net/http"
 	"net/url"
 	"sync"
+
+	"github.com/30x/gozerian/c_gateway"
+	"github.com/30x/gozerian/pipeline"
 )
 
 /*
@@ -20,7 +22,7 @@ import (
 
 var requests = make(map[uint32]*request)
 var responses = make(map[uint32]*response)
-var pipeDefs = make(map[string]PipeDefinition)
+var pipeDefs = make(map[string]pipeline.Definition)
 var managerLatch = &sync.Mutex{}
 var lastID uint32
 
@@ -44,17 +46,17 @@ func CreateHandler(id, cfgURI string) error {
 		return err
 	}
 
-	var pipeDef PipeDefinition
+	var pipeDef pipeline.Definition
 	if configURI.Scheme == URNScheme && configURI.Opaque == TestHandlerURIName {
 		pipeDef = &TestPipeDef{}
 	} else if configURI.Scheme == URNScheme && configURI.Opaque == BadHandlerURIName {
+		// This is a pre-defined "bad handler" so that we can unit-test an error from this routine.
 		return fmt.Errorf("Invalid handler from %s", cfgURI)
 	} else {
-		pipeDef, err := c_gateway.DefinePipe(configURI)
+		pipeDef, err = c_gateway.DefinePipe(configURI)
 		if err != nil {
 			return err
 		}
-		pipeDef = pipeDef
 	}
 
 	managerLatch.Lock()

@@ -7,19 +7,27 @@ import (
 	"net/http"
 	"net/url"
 	"time"
+
+	"github.com/30x/gozerian/pipeline"
 )
 
-type TestPipeDef struct {}
-func (self *TestPipeDef) CreatePipe(reqId string) Pipe {
+type TestPipeDef struct{}
+
+func (d *TestPipeDef) CreatePipe(reqID string) pipeline.Pipe {
 	return &TestPipe{}
 }
 
-type TestPipe struct {}
-func (self *TestPipe) RequestHandlerFunc() http.HandlerFunc {
+type TestPipe struct{}
+
+func (p *TestPipe) RequestHandlerFunc() http.HandlerFunc {
 	return testHandleRequest
 }
-func (self *TestPipe) ResponseHandlerFunc() ResponseHandlerFunc {
+func (p *TestPipe) ResponseHandlerFunc() pipeline.ResponseHandlerFunc {
 	return testHandleResponse
+}
+func (p *TestPipe) Control() pipeline.PipelineControl {
+	// For testing only; this will never be called.
+	return nil
 }
 
 // help us a bit by saving test results for internal comparison

@@ -22,15 +22,6 @@ const (
 	BadHandlerURI     = URNPrefix + BadHandlerURIName
 )
 
-type PipeDefinition interface {
-	CreatePipe(reqId string) Pipe
-}
-
-type Pipe interface {
-	RequestHandlerFunc() http.HandlerFunc
-	ResponseHandlerFunc() ResponseHandlerFunc
-}
-
 type ResponseHandlerFunc func(w http.ResponseWriter, r *http.Request, res *http.Response)
 
 /*

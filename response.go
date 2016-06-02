@@ -5,11 +5,13 @@ import (
 	"net/http"
 	"reflect"
 	"strconv"
+
+	"github.com/30x/gozerian/pipeline"
 )
 
 type response struct {
 	id          uint32
-	pipeDef     PipeDefinition
+	pipeDef     pipeline.Definition
 	cmds        chan command
 	bodies      chan []byte
 	resp        *http.Response
@@ -20,7 +22,7 @@ type response struct {
 	readStarted bool
 }
 
-func newResponse(id uint32, pd PipeDefinition) *response {
+func newResponse(id uint32, pd pipeline.Definition) *response {
 	r := response{
 		id:      id,
 		pipeDef: pd,

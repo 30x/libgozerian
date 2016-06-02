@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"net/url"
 	"reflect"
+
+	"github.com/30x/gozerian/pipeline"
 )
 
 /*
@@ -30,7 +32,7 @@ const (
 )
 
 type request struct {
-	pipeDef      PipeDefinition
+	pipeDef      pipeline.Definition
 	req          *http.Request
 	resp         *httpResponse
 	origHeaders  http.Header
@@ -43,7 +45,7 @@ type request struct {
 	readerClosed bool
 }
 
-func newRequest(id uint32, pd PipeDefinition) *request {
+func newRequest(id uint32, pd pipeline.Definition) *request {
 	r := request{
 		pipeDef:  pd,
 		id:       id,
