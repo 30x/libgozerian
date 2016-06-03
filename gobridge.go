@@ -1,7 +1,6 @@
 package main
 
 import (
-	"net/http"
 	"sync"
 	"unsafe"
 )
@@ -28,44 +27,6 @@ const (
 	BadHandlerURI = urnPrefix + BadHandlerURIName
 )
 
-// ResponseHandlerFunc is the type of handler function used for handling
-// responses. The same signature is used by gozerian.
-type ResponseHandlerFunc func(w http.ResponseWriter, r *http.Request, res *http.Response)
-
-// A Handler object handles requests on behalf of a particular configuration,
-// represented by a handler ID. Instances of this interface are created by the
-// handler implementation by the HandlerFactory. Instances of this interface
-// must be able to handle concurrent requests.
-type Handler struct {
-
-	// Process an HTTP request.
-	//   Normally, We assume that the request will be passed along
-	// to a target as a proxy. If the headers or URL of the request are changed,
-	// then the modified headers or URL are passed along to the target. If the
-	// "Body" propery of the request is replaced, then the new body is sent
-	// to the target instead of the original request body.
-	//   The ResponseWriter may be used to send a response directly to the client.
-	// It is assumed that when this object is used to generate a response by
-	// calling "Write" or "WriteHeader" that the request is never forwarded
-	// to the proxy, but instead the response set in ResponseWriter is sent
-	// instead.
-
-	RequestHandler http.HandlerFunc
-
-	// Process an HTTP proxy response.
-	//   This method is called after the request was forwarded to a target
-	// server. (If a response was generated in "ServeHTTP" using the ResponseWriter,
-	// then this would never have happened.)
-	//   If the headers or status code of the Response object are changed, then the
-	// new values are returned to the client. If the "Body" property of the Response
-	// object is changed, then the contents of the new Body are sent to the
-	// client instead of what was received by the proxy. Finally, if the
-	// ResponseWriter is used to generate a response, then the response will
-	// replace whatever has been received by the proxy.
-
-	ResponseHandler ResponseHandlerFunc
-}
-
 // A global, thread-safe chunk table.
 
 type chunk struct {
@@ -83,10 +44,18 @@ var chunkLock = sync.Mutex{}
 
 // Functions below are the public C-language API for this code.
 
-// GoCreateHandler creates a new handler. This tells the GO implementation to set up some
-// resources for handling requests later. If there was an error creating
-// the handler, then return a string indicating the cause. Otherwise,
-// return NULL. If a string is returned, the caller must free it using "free".
+/*
+GoCreateHandler creates a new handler. This tells the GO implementation to set up some
+resources for handling requests later. If there was an error creating
+the handler, then return a string indicating the cause. Otherwise,
+return NULL. If a string is returned, the caller must free it using "free".
+
+The first parameter is a string ID that will be used later to refer to the handler.
+The content of this string is up to the caller.
+
+The second parameter is a URI to the configuration. The contents of this URI
+are up to the Gozerian library.
+*/
 //export GoCreateHandler
 func GoCreateHandler(handlerID, configURI *C.char) *C.char {
 	err := createHandler(C.GoString(handlerID), C.GoString(configURI))
@@ -96,45 +65,65 @@ func GoCreateHandler(handlerID, configURI *C.char) *C.char {
 	return C.CString(err.Error())
 }
 
-// GoDestroyHandler destroys a handler created by GoCreateHandler.
-// Depending on how libgozerian is used it may be important to call
-// this when finished with a handler.
+/*
+GoDestroyHandler destroys a handler created by GoCreateHandler.
+Depending on how libgozerian is used it may be important to call
+this when finished with a handler.
+The parameter is the same handler ID that was passed to GoCreateHandler.
+*/
 //export GoDestroyHandler
 func GoDestroyHandler(handlerID *C.char) {
 	destroyHandler(C.GoString(handlerID))
 }
 
-// GoCreateRequest creates a new "request" object and return its unique ID. The request
-// goes in a map, so it's important that the caller always call
-// GoFreeRequest or there will be a memory leak.
+/*
+GoCreateRequest creates a new "request" object and return its unique ID. The request
+goes in a map, so it's important that the caller always call
+GoFreeRequest or there will be a memory leak.
+The parameter is the same handler ID that was passed to GoCreateHandler.
+
+This method returns a request ID that must be used later to identify
+the request.
+*/
 //export GoCreateRequest
 func GoCreateRequest(handlerID *C.char) uint32 {
 	return createRequest(C.GoString(handlerID))
 }
 
-// GoCreateResponse creates a new "response" object and return its unique ID.
-// Like the request the response goes in a map and must be freed.
+/*
+GoCreateResponse creates a new "response" object and return its unique ID.
+Like the request the response goes in a map and must be freed.
+
+This method returns a response ID that must be used later to identify
+the response.
+*/
 //export GoCreateResponse
 func GoCreateResponse(handlerID *C.char) uint32 {
 	return createResponse(C.GoString(handlerID))
 }
 
-// GoFreeRequest cleans up any storage used by the request. This method must be called for
-// every ID generated by GoCreateRequest or there will be a memory leak.
+/*
+GoFreeRequest cleans up any storage used by the request. This method must be called for
+every ID generated by GoCreateRequest or there will be a memory leak.
+*/
 //export GoFreeRequest
 func GoFreeRequest(id uint32) {
 	freeRequest(id)
 }
 
-// GoFreeResponse cleans the response like the request.
+/*
+GoFreeResponse cleans the response like the request.
+*/
 //export GoFreeResponse
 func GoFreeResponse(id uint32) {
 	freeResponse(id)
 }
 
-// GoStoreChunk stores a chunk of data. The pointer must already have been allocated
-// using "malloc" and the data must be valid for the length of the
-// request. A chunk ID will be returned.
+/*
+GoStoreChunk stores a chunk of data. The pointer must already have been allocated
+using "malloc" and the data must be valid for the length of the
+request. A chunk ID will be returned.
+*/
 //export GoStoreChunk
 func GoStoreChunk(data unsafe.Pointer, len uint32) int32 {
 	chunkLock.Lock()
@@ -153,21 +142,27 @@ func GoStoreChunk(data unsafe.Pointer, len uint32) int32 {
 	return lastChunkID
 }
 
-// GoReleaseChunk frees a chunk of data that was stored using GoStoreChunk. This only frees
-// the data used to track the chunk -- the caller is responsible for
-// actually calling "free".
+/*
+GoReleaseChunk frees a chunk of data that was stored using GoStoreChunk. This only frees
+the data used to track the chunk -- the caller is responsible for
+actually calling "free".
+*/
 //export GoReleaseChunk
 func GoReleaseChunk(id int32) {
 	releaseChunk(id)
 }
 
-// GoGetChunk retrieves the pointer to a chunk of data stored using "GoStoreChunk".
+/*
+GoGetChunk retrieves the pointer to a chunk of data stored using "GoStoreChunk".
+*/
 //export GoGetChunk
 func GoGetChunk(id int32) unsafe.Pointer {
 	return getChunk(id).data
 }
 
-// GoGetChunkLength retrieves the length of a specific chunk.
+/*
+GoGetChunkLength retrieves the length of a specific chunk.
+*/
 //export GoGetChunkLength
 func GoGetChunkLength(id int32) uint32 {
 	return getChunk(id).len
@@ -185,27 +180,41 @@ func releaseChunk(id int32) {
 	delete(chunks, id)
 }
 
-// GoBeginRequest starts parsing the new request. "rawHeaders" must be a string that
-// represents the HTTP request line and headers, separated by CRLF pairs,
-// exactly as described in the HTTP spec.
-// Once this function has been called, the request is already running.
-// The caller MUST periodically call "GoPollRequest" in order to get updates
-// on the status of the request, and MUST call "GoFreeRequest" after
-// the request is done.
+/*
+GoBeginRequest starts parsing the new request. The first parameter is the
+request ID returned by "GoCreateRequest."
+
+The second parameter must be a string that
+represents the HTTP request line and headers, separated by CRLF pairs,
+exactly as described in the HTTP spec.
+
+Once this function has been called, the request is already running.
+The caller MUST periodically call "GoPollRequest" in order to get updates
+on the status of the request, and MUST call "GoFreeRequest" after
+the request is done.
+*/
 //export GoBeginRequest
 func GoBeginRequest(id uint32, rawHeaders *C.char) {
 	beginRequest(id, C.GoString(rawHeaders))
 }
 
-// GoPollRequest polls for updates from the running request. Each update is returned as
-// a null-terminated string. The format of each command string is
-// described in the README.
-// If "block" is non-zero, then block until a command is present. Otherwise,
-// return immediately if there is no command on the queue.
-// The final response from the request will be "DONE." When this is called,
-// then no more commands will be returned. The caller must not poll
-// after "DONE" is returned.
-// The caller is responsible for calling "free" on the returned command string.
+/*
+GoPollRequest polls for updates from the running request. Each update is returned as
+a null-terminated string. The format of each command string is
+described in the README.
+
+The first parameter is a request ID. If the second parameter ("block") is
+non-zero, then this method will block the calling thread until data is
+available. Otherwise, it will immediately return NULL if there is nothing
+to report. Implementations are strongly advised to add a short delay between
+polling requests if blocking cannot be used.
+
+The final response from the request will be "DONE." When this is called,
+then no more commands will be returned. The caller must not poll
+after "DONE" is returned.
+
+The caller is responsible for calling "free" on the returned command string.
+*/
 //export GoPollRequest
 func GoPollRequest(id uint32, block int32) *C.char {
 	cmd := pollRequest(id, block != 0)
@@ -215,23 +224,37 @@ func GoPollRequest(id uint32, block int32) *C.char {
 	return C.CString(cmd)
 }
 
-// GoSendRequestBodyChunk sends a chunk of request data to the running goroutine. The second pointer,
-// if non-zero, indicates that this is the last chunk. "data" and "len"
-// must point to valid memory. A copy will be made before this function
-// call returns, so the caller is free to deallocate this memory
-// after calling this function.
+/*
+GoSendRequestBodyChunk sends a chunk of request data to the running request.
+This method must not be called until GoPollRequest returns an RBOD command.
+
+The first parameter is the request ID. The second, if non-zero, indicates that
+this chunk is the last chunk of data in the request body. If this method is
+never called with this parameter set to non-zero, then the request will likely
+never complete correctly.
+
+The last two parameters are a pointer to the data itself, and the length.
+A copy will be made before this function
+call returns, so the caller is free to deallocate this memory
+immediately after this function returns
+*/
 //export GoSendRequestBodyChunk
 func GoSendRequestBodyChunk(id uint32, l int32, data unsafe.Pointer, len uint32) {
 	buf, last := copyPointer(l, data, len)
 	sendRequestBodyChunk(id, last, buf)
 }
 
-// GoBeginResponse starts to handle a response. Like the request path, this starts response
-// handling working in a goroutine, and the caller may poll for changes
-// using GoPollResponse.
-// The response handler may also wish to use the request object, so the
-// request ID (from GoCreateRequest) must also be passed in.
-///
+/*
+GoBeginResponse starts to handle a response. Like the request path, this starts response
+handling working in a goroutine, and the caller may poll for changes
+using GoPollResponse.
+
+The first parameter is the response ID as created by GoCreateResponse. The second
+is the request ID that was previously used for the request side of this interaction.
+The third is the current HTTP status code of the response, while the last is a
+set of headers encoded in the same format used by the WHDR command: "name: value"
+lines separated by a single newline (not a CRLF as in HTTP).
+*/
 //export GoBeginResponse
 func GoBeginResponse(responseID, requestID, status uint32, hdrs *C.char) {
 	beginResponse(responseID, requestID, status, C.GoString(hdrs))

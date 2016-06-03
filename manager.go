@@ -67,7 +67,7 @@ func createHandler(id, cfgURI string) error {
 		pipeDef = &TestPipeDef{}
 	} else if configURI.Scheme == URNScheme && configURI.Opaque == BadHandlerURIName {
 		// This is a pre-defined "bad handler" so that we can unit-test an error from this routine.
-		return fmt.Errorf("Invalid handler from %s", cfgURI)
+		return fmt.Errorf("Invalid handler %s", BadHandlerURI)
 	} else {
 		pipeDef, err = c_gateway.DefinePipe(configURI)
 		if err != nil {

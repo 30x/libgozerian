@@ -57,16 +57,3 @@ func (b *requestBody) Close() error {
 	}
 	return nil
 }
-
-// Utility used in testing
-
-func readChunk(id int32, release bool) []byte {
-	c := getChunk(id)
-	ret := make([]byte, c.len)
-	copy(ret[:], (*[1 << 30]byte)(c.data)[:])
-	if release {
-		C.free(c.data)
-		releaseChunk(id)
-	}
-	return ret
-}

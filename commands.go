@@ -35,6 +35,17 @@ const (
 	WBOD
 )
 
+const (
+	cmdDone = "DONE"
+	cmdErrr = "ERRR"
+	cmdRbod = "RBOD"
+	cmdWhdr = "WHDR"
+	cmdWURI = "WURI"
+	cmdWsta = "WSTA"
+	cmdSwch = "SWCH"
+	cmdWbod = "WBOD"
+)
+
 type command struct {
 	id  CommandID
 	msg string

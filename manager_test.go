@@ -28,6 +28,11 @@ var _ = Describe("Go Management Interface", func() {
 		freeResponse(rid)
 	})
 
+	It("Bad handler", func() {
+		err := createHandler("bad", BadHandlerURI)
+		Expect(err).ShouldNot(Succeed())
+	})
+
 	It("Basic Request", func() {
 		err := beginRequest(id, makeRequestHeaders("GET", "/pass", "", 0))
 		Expect(err).Should(Succeed())
@@ -564,5 +569,5 @@ func makeResponseHeaders(contentType string, bodyLen int) string {
 func readBodyData(cmd string) []byte {
 	id, err := strconv.ParseInt(cmd[4:], 16, 32)
 	Expect(err).Should(Succeed())
-	return readChunk(int32(id), true)
+	return getChunkDataByID(int32(id))
 }

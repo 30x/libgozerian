@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"flag"
 	"fmt"
 	"net"
@@ -45,9 +46,13 @@ type gozerianServer struct {
  * If "port" is 0, then listen on an ephemeral port.
  */
 func startGozerianServer(port int, proxyTarget, handlerURL string) (*gozerianServer, error) {
-	err := createHandler(defaultHandlerID, handlerURL)
-	if err != nil {
-		return nil, err
+	cURL := C.CString(handlerURL)
+	defer C.free(unsafe.Pointer(cURL))
+
+	errStr := GoCreateHandler(defaultHandlerName, cURL)
+	if errStr != nil {
+		defer C.free(errStr)
+		return nil, errors.New(C.GoString(errStr))
 	}
 
 	addr := net.TCPAddr{
@@ -76,6 +81,7 @@ func (s *gozerianServer) run() {
 
 func (s *gozerianServer) stop() {
 	s.listener.Close()
+	GoDestroyHandler(defaultHandlerName)
 }
 
 func (s *gozerianServer) setDebug(d bool) {
@@ -136,7 +142,7 @@ func (m *weaverHandler) processRequest(
 	//proxyPath := req.URL.Path
 	sentHeaders := false
 
-	for cmd != "DONE" && cmd != "ERRR" {
+	for cmd != cmdDone && cmd != cmdErrr {
 		rawCmd := GoPollRequest(id, 1)
 		cmdBuf := C.GoString(rawCmd)
 		C.free(unsafe.Pointer(rawCmd))
@@ -148,24 +154,24 @@ func (m *weaverHandler) processRequest(
 		}
 
 		switch cmd {
-		case "ERRR":
+		case cmdErrr:
 			resp.WriteHeader(http.StatusInternalServerError)
 			resp.Write([]byte(msg))
 			return true
-		case "RBOD":
+		case cmdRbod:
 			requestBody.ReadFrom(req.Body)
 			ptr, len := sliceToPtr(requestBody.Bytes())
 			GoSendRequestBodyChunk(id, 1, ptr, len)
 			C.free(ptr)
-		case "WHDR":
+		case cmdWhdr:
 			if proxying {
 				parseHeaders(proxyHeaders, msg)
 			} else {
 				parseHeaders(resp.Header(), msg)
 			}
-		case "WURI":
+		case cmdWURI:
 			//proxyPath = msg
-		case "WBOD":
+		case cmdWbod:
 			chunk := getChunkData(msg)
 			if proxying {
 				if !writingRequest {
@@ -180,10 +186,10 @@ func (m *weaverHandler) processRequest(
 				}
 				resp.Write(chunk)
 			}
-		case "SWCH":
+		case cmdSwch:
 			proxying = false
 			responseCode, _ = strconv.Atoi(msg)
-		case "DONE":
+		case cmdDone:
 		default:
 			sendHTTPError(fmt.Errorf("Unexpected command %s", cmd), resp)
 			return true
@@ -222,7 +228,7 @@ func (m *weaverHandler) processResponse(
 	sentHeaders := false
 	wroteBody := false
 
-	for cmd != "DONE" && cmd != "ERRR" {
+	for cmd != cmdDone && cmd != cmdErrr {
 		rawCmd := GoPollResponse(rid, 1)
 		cmdBuf := C.GoString(rawCmd)
 		C.free(unsafe.Pointer(rawCmd))
@@ -234,19 +240,19 @@ func (m *weaverHandler) processResponse(
 		}
 
 		switch cmd {
-		case "ERRR":
+		case cmdErrr:
 			resp.WriteHeader(http.StatusInternalServerError)
 			resp.Write([]byte(msg))
 			return
-		case "WSTA", "SWCH":
+		case cmdWsta, cmdSwch:
 			responseCode, _ = strconv.Atoi(msg)
-		case "WHDR":
+		case cmdWhdr:
 			parseHeaders(resp.Header(), msg)
-		case "RBOD":
+		case cmdRbod:
 			ptr, len := sliceToPtr(requestBody.Bytes())
 			GoSendResponseBodyChunk(rid, 1, ptr, len)
 			C.free(ptr)
-		case "WBOD":
+		case cmdWbod:
 			if !sentHeaders {
 				resp.WriteHeader(responseCode)
 				sentHeaders = true
@@ -254,7 +260,7 @@ func (m *weaverHandler) processResponse(
 			chunk := getChunkData(msg)
 			wroteBody = true
 			resp.Write(chunk)
-		case "DONE":
+		case cmdDone:
 		default:
 			sendHTTPError(fmt.Errorf("Unexpected command %s", cmd), resp)
 		}
@@ -278,8 +284,12 @@ func getChunkData(rawID string) []byte {
 	if err != nil {
 		return nil
 	}
-	ptr := GoGetChunk(int32(id))
-	len := GoGetChunkLength(int32(id))
+	return getChunkDataByID(int32(id))
+}
+
+func getChunkDataByID(id int32) []byte {
+	ptr := GoGetChunk(id)
+	len := GoGetChunkLength(id)
 	buf := C.GoBytes(ptr, C.int(len))
 	GoReleaseChunk(int32(id))
 	C.free(ptr)

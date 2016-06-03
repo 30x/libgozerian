@@ -32,19 +32,18 @@ const (
 )
 
 type request struct {
-	req          *http.Request
-	resp         *httpResponse
-	origHeaders  http.Header
-	origURL      *url.URL
-	origBody     io.ReadCloser
-	id           uint32
-	msgID        string
-	pipe         pipeline.Pipe
-	pd           pipeline.Definition
-	cmds         chan command
-	bodies       chan []byte
-	proxying     bool
-	readerClosed bool
+	req         *http.Request
+	resp        *httpResponse
+	origHeaders http.Header
+	origURL     *url.URL
+	origBody    io.ReadCloser
+	id          uint32
+	msgID       string
+	pipe        pipeline.Pipe
+	pd          pipeline.Definition
+	cmds        chan command
+	bodies      chan []byte
+	proxying    bool
 }
 
 func newRequest(id uint32, pd pipeline.Definition) *request {
