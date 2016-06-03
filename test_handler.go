@@ -42,7 +42,7 @@ func (p *TestPipe) ResponseHandlerFunc() pipeline.ResponseHandlerFunc {
 
 // Control is not implemented because it is not used by libgozerian, only by
 // gozerian itself, which does not invoke this particular handler.
-func (p *TestPipe) Control() pipeline.PipelineControl {
+func (p *TestPipe) Control() pipeline.Control {
 	// For testing only; this will never be called.
 	return nil
 }
