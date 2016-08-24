@@ -119,7 +119,8 @@ func (r *request) startRequest(rawHeaders string) {
 	// Call handlers. They may write the request body or headers, or start
 	// to write out a response.
 	r.msgID = makeMessageID()
-	r.pipe = r.pd.CreatePipe(r.msgID)
+	r.pipe = r.pd.CreatePipe()
+	r.req = r.pipe.PrepareRequest(r.msgID, r.req)
 	r.pipe.RequestHandlerFunc()(resp, req)
 
 	// It's possible that not everything was cleaned up here.

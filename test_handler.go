@@ -15,9 +15,8 @@ import (
 type TestPipeDef struct{}
 
 // CreatePipe creates a new pipeline.
-func (d *TestPipeDef) CreatePipe(reqID string) pipeline.Pipe {
+func (d *TestPipeDef) CreatePipe() pipeline.Pipe {
 	return &TestPipe{
-		id: reqID,
 	}
 }
 
@@ -26,7 +25,12 @@ type TestPipe struct {
 	id string
 }
 
-// RequestHandlerFunc is the function that handles the request
+func (p *TestPipe) PrepareRequest(reqID string, r *http.Request) *http.Request {
+	p.id = reqID
+	return r
+}
+
+	// RequestHandlerFunc is the function that handles the request
 func (p *TestPipe) RequestHandlerFunc() http.HandlerFunc {
 	return func(resp http.ResponseWriter, req *http.Request) {
 		testHandleRequest(p.id, resp, req)

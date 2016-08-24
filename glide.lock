@@ -1,8 +1,8 @@
-hash: 484bcd7cf49a3047a52716b14a5283dde19c5fa80d95cd6995a7cc5746270c4b
-updated: 2016-08-18T15:18:47.870056498-07:00
+hash: e1b948ecd7a4e950127daf9e0f088997910a55b834643f0a45e33d2ffca43aad
+updated: 2016-08-24T13:21:37.871562685-07:00
 imports:
 - name: github.com/30x/gozerian
-  version: 64b9fd755d68119152a1739238fa4a93d37c5cab
+  version: b56afce8e8af1ddffa9436b40d93f597029bfc66
   subpackages:
   - c_gateway
   - pipeline
@@ -53,10 +53,6 @@ imports:
   - curve25519
   - ed25519
   - ed25519/internal/edwards25519
-- name: golang.org/x/net
-  version: 07b51741c1d6423d4a6abab1c49940ec09cb1aaf
-  subpackages:
-  - context
 - name: golang.org/x/sys
   version: a646d33e2ee3172a661fc09bca23bb4889a41bc8
   subpackages:
